@@ -17,8 +17,8 @@ pub enum AuraxisError {
     Unknown(#[from] anyhow::Error),
 }
 
-pub type CharacterID = u32;
-pub type OutfitID = u32;
+pub type CharacterID = u64;
+pub type OutfitID = u64;
 pub type ZoneID = u32;
 pub type FacilityID = u32;
 pub type ExperienceID = u16;
