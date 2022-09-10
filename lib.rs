@@ -2,7 +2,7 @@ mod constants;
 mod realtime;
 
 pub use constants::*;
-pub use realtime::client::RealtimeClient;
+pub use realtime::client::{RealtimeClient, RealtimeClientConfig};
 
 use thiserror::Error;
 
