@@ -15,7 +15,7 @@ pub const REALTIME_URL: &str = "wss://push.planetside2.com/streaming";
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
-enum Service {
+pub enum Service {
     Event,
 }
 
