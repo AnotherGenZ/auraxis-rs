@@ -3,6 +3,7 @@ mod realtime;
 
 pub use constants::*;
 pub use realtime::client::{RealtimeClient, RealtimeClientConfig};
+pub use realtime::subscription::{CharacterSubscription, EventSubscription, WorldSubscription};
 
 use thiserror::Error;
 
