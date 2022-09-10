@@ -23,6 +23,7 @@ use tracing::{error, info};
 pub struct RealtimeClientConfig {
     pub environment: String,
     pub service_id: String,
+    pub realtime_url: Option<String>,
 }
 
 impl Default for RealtimeClientConfig {
@@ -30,6 +31,7 @@ impl Default for RealtimeClientConfig {
         Self {
             environment: String::from("ps2"),
             service_id: String::from(""),
+            realtime_url: None
         }
     }
 }
@@ -53,7 +55,7 @@ impl RealtimeClient {
     pub async fn connect(&mut self) -> Result<Receiver<Event>, AuraxisError> {
         let census_addr = format!(
             "{}?environment={}&service-id=s:{}",
-            REALTIME_URL, self.config.environment, self.config.service_id
+            self.config.realtime_url.as_deref().unwrap_or(REALTIME_URL), self.config.environment, self.config.service_id
         );
 
         let (websocket, _res) = connect_async(census_addr).await?;
