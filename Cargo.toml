@@ -19,6 +19,9 @@ thiserror = "1.0.34"
 num_enum = "0.5.7"
 anyhow = "1.0.64"
 
+[dev-dependencies]
+tracing-subscriber = "0.3"
+
 [lib]
 name = "auraxis"
 path = "src/lib.rs"
