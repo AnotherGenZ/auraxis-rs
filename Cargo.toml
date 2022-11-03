@@ -11,7 +11,7 @@ serde = { version = "1.0.144", features = ["derive", "serde_derive"] }
 serde_json = "1.0.85"
 serde_with = { version = "2.0.0", features = ["chrono"] }
 tracing = "0.1.36"
-tokio = { version = "1.21.0", features = ["sync", "time", "rt", "net"] }
+tokio = { version = "1.21.0", features = ["sync", "time", "rt", "net", "macros"] }
 tokio-tungstenite = { version = "0.17.2", features = ["connect", "native-tls"] }
 futures = "0.3.24"
 futures-util = "0.3.24"
@@ -21,4 +21,7 @@ anyhow = "1.0.64"
 
 [lib]
 name = "auraxis"
-path = "lib.rs"
+path = "src/lib.rs"
+
+[[example]]
+name = "basic"
