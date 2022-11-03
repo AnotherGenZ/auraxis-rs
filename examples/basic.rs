@@ -4,12 +4,17 @@ use auraxis::{client::{RealtimeClient, RealtimeClientConfig}, event::Event};
 use auraxis::event::EventNames;
 use auraxis::subscription::{CharacterSubscription, EventSubscription, WorldSubscription};
 use auraxis::WorldID;
+use tracing_subscriber;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn Error>> {
+    tracing_subscriber::fmt()
+    .with_max_level(tracing::Level::DEBUG)
+    .with_target(false)
+    .init();
     let config = RealtimeClientConfig {
-        environment: "ps2".to_string(),
         service_id: "example".to_string(),
+        ..RealtimeClientConfig::default()
     };
 
     let mut client = RealtimeClient::new(config);
@@ -24,7 +29,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 println!("Player {} logged in", player.character_id);
             }
             _ => {
-                //println!("{:?}", &event);
+                println!("{:?}", &event);
             }
         }
     }
