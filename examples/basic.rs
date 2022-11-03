@@ -13,9 +13,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     .with_target(false)
     .init();
     let config = RealtimeClientConfig {
-        environment: "ps2".to_string(),
         service_id: "example".to_string(),
-        realtime_url: None
+        ..RealtimeClientConfig::default()
     };
 
     let mut client = RealtimeClient::new(config);
