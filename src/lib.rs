@@ -2,9 +2,9 @@ mod constants;
 mod realtime;
 
 pub use constants::*;
-pub use realtime::client::{RealtimeClient, RealtimeClientConfig};
-pub use realtime::subscription;
+pub use realtime::client;
 pub use realtime::event;
+pub use realtime::subscription;
 
 use thiserror::Error;
 

@@ -7,7 +7,7 @@ use crate::realtime::Service;
 use crate::{CharacterID, WorldID};
 use serde::Serialize;
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Clone, Debug)]
 #[serde(untagged)]
 pub enum CharacterSubscription {
     #[serde(serialize_with = "serialize_all_subscription")]
@@ -16,7 +16,7 @@ pub enum CharacterSubscription {
     Ids(Vec<CharacterID>),
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Clone, Debug)]
 #[serde(untagged)]
 pub enum WorldSubscription {
     #[serde(serialize_with = "serialize_all_subscription")]
@@ -26,7 +26,7 @@ pub enum WorldSubscription {
     Ids(Vec<WorldID>),
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Clone, Debug)]
 #[serde(untagged)]
 pub enum EventSubscription {
     #[serde(serialize_with = "serialize_all_subscription")]
@@ -34,7 +34,8 @@ pub enum EventSubscription {
     Ids(Vec<EventNames>),
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct SubscriptionSettings {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub event_names: Option<EventSubscription>,

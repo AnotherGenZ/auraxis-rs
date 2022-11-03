@@ -1,4 +1,3 @@
-use std::fmt::Pointer;
 use std::sync::Arc;
 use super::Message as CensusMessage;
 use crate::realtime::{
@@ -17,7 +16,7 @@ use tokio::sync::mpsc::{Receiver, Sender};
 use tokio_tungstenite::tungstenite::error::Error;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 #[derive(Clone)]
 pub struct RealtimeClientConfig {
@@ -69,7 +68,7 @@ impl RealtimeClient {
         tokio::spawn(Self::send_ws(ws_send, ws_send_rx));
         tokio::spawn(Self::ping_ws(ws_send_tx.clone()));
         tokio::spawn(Self::resubscribe(self.clone(), ws_send_tx.clone()));
-        tokio::spawn(Self::read_ws( self.clone(), ws_send_tx, ws_recv, event_stream_tx));
+        tokio::spawn(Self::read_ws(self.clone(), ws_send_tx, ws_recv, event_stream_tx));
 
         Ok(event_stream_rx)
     }
@@ -180,6 +179,8 @@ impl RealtimeClient {
                         if connected {
                             info!("Connected to Census!");
 
+                            debug!("Subscribing with {:?}", serde_json::to_string(&Action::Subscribe((*self.subscription_config).clone()))?);
+
                             ws_send
                                 .send(Message::Text(serde_json::to_string(&Action::Subscribe((*self.subscription_config).clone()))?))
                                 .await
@@ -195,7 +196,7 @@ impl RealtimeClient {
                     }
                     CensusMessage::ServiceStateChanged { .. } => {}
                     CensusMessage::Subscription { subscription } => {
-                        print!("Subscribed: {:?}", subscription);
+                        debug!("Subscribed: {:?}", subscription);
                     }
                 }
             }
@@ -209,7 +210,7 @@ impl RealtimeClient {
             Message::Pong(_) => {}
             Message::Close(close) => {
                 if let Some(close_frame) = close {
-                    println!(
+                    error!(
                         "Websocket closed. Code: {}, Reason: {}",
                         close_frame.code, close_frame.reason
                     );

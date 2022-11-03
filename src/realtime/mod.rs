@@ -13,7 +13,7 @@ use utils::{deserialize_from_str, serialize_optional_bool};
 
 pub const REALTIME_URL: &str = "wss://push.planetside2.com/streaming";
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub enum Service {
     Event,
@@ -55,10 +55,8 @@ enum Action {
 #[serde(rename_all = "camelCase")]
 struct Subscription {
     pub character_count: u64,
-    // TODO: request::EventNames minus GainExperienceId
     pub event_names: Vec<String>,
     pub logical_and_characters_with_worlds: bool,
-    // TODO: request::WorldSubscription
     pub worlds: Vec<String>,
 }
 
