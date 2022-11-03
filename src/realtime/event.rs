@@ -9,7 +9,7 @@ use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use serde_with::{DeserializeAs, SerializeAs, TimestampMilliSeconds, TimestampSeconds};
 
-#[derive(PartialEq, Eq, Hash, Clone)]
+#[derive(PartialEq, Eq, Hash, Clone, Debug)]
 pub enum EventNames {
     AchievementEarned,
     BattleRankUp,
@@ -240,6 +240,7 @@ pub struct GainExperience {
     pub world_id: WorldID,
     #[serde(deserialize_with = "deserialize_from_str")]
     pub zone_id: ZoneID,
+    pub amount: u16
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]

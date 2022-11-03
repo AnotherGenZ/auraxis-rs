@@ -2,7 +2,9 @@ mod constants;
 mod realtime;
 
 pub use constants::*;
-pub use realtime::client::RealtimeClient;
+pub use realtime::client;
+pub use realtime::event;
+pub use realtime::subscription;
 
 use thiserror::Error;
 
@@ -16,8 +18,8 @@ pub enum AuraxisError {
     Unknown(#[from] anyhow::Error),
 }
 
-pub type CharacterID = u32;
-pub type OutfitID = u32;
+pub type CharacterID = u64;
+pub type OutfitID = u64;
 pub type ZoneID = u32;
 pub type FacilityID = u32;
 pub type ExperienceID = u16;
