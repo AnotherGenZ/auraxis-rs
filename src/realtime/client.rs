@@ -64,7 +64,7 @@ impl RealtimeClient {
         let (event_stream_tx, event_stream_rx) = tokio::sync::mpsc::channel::<Event>(1000);
 
         self.ws_send = Some(ws_send_tx.clone());
-
+        
         tokio::spawn(Self::send_ws(ws_send, ws_send_rx));
         tokio::spawn(Self::ping_ws(ws_send_tx.clone()));
         tokio::spawn(Self::resubscribe(self.clone(), ws_send_tx.clone()));
@@ -75,16 +75,9 @@ impl RealtimeClient {
 
     pub fn subscribe(
         &mut self,
-        events: Option<EventSubscription>,
-        characters: Option<CharacterSubscription>,
-        worlds: Option<WorldSubscription>,
+        subscription: SubscriptionSettings
     ) {
-        self.subscription_config = Arc::new(SubscriptionSettings {
-            event_names: events,
-            characters,
-            worlds,
-            ..Default::default()
-        })
+        self.subscription_config = Arc::new(subscription)
     }
 
     async fn resubscribe(self, ws_send: Sender<Message>) -> Result<(), AuraxisError> {
@@ -114,6 +107,7 @@ impl RealtimeClient {
         mut ws_send_rx: Receiver<Message>,
     ) -> Result<(), AuraxisError> {
         while let Some(msg) = ws_send_rx.recv().await {
+            // debug!("Sent: {:?}", msg.to_string());
             ws_send.send(msg).await?;
         }
 
@@ -129,6 +123,7 @@ impl RealtimeClient {
         while let Some(message) = ws_recv.next().await {
             match message {
                 Ok(msg) => {
+                    // debug!("Received: {:?}", msg.to_string());
                     tokio::spawn(
                         Self::handle_ws_msg(self.clone(), ws_send.clone(), event_stream_tx.clone(), msg).map_err(
                             |err| {
