@@ -2,7 +2,7 @@ use std::error::Error;
 use tokio;
 use auraxis::{client::{RealtimeClient, RealtimeClientConfig}, event::Event};
 use auraxis::event::EventNames;
-use auraxis::subscription::{CharacterSubscription, EventSubscription, WorldSubscription};
+use auraxis::subscription::{SubscriptionSettings, EventSubscription, CharacterSubscription, WorldSubscription};
 use auraxis::WorldID;
 use tracing_subscriber;
 
@@ -17,9 +17,17 @@ async fn main() -> Result<(), Box<dyn Error>> {
         ..RealtimeClientConfig::default()
     };
 
+    let subscription = SubscriptionSettings {
+        event_names: Some(EventSubscription::Ids(vec!(EventNames::PlayerLogin))),
+        characters: Some(CharacterSubscription::All),
+        worlds: Some(WorldSubscription::Ids(vec![WorldID::Emerald])),
+        logical_and_characters_with_worlds: Some(true),
+        ..SubscriptionSettings::default()
+    };
+
     let mut client = RealtimeClient::new(config);
 
-    client.subscribe(Some(EventSubscription::All), Some(CharacterSubscription::All), Some(WorldSubscription::Ids(vec![WorldID::Emerald])));
+    client.subscribe(subscription);
 
     let mut events = client.connect().await?;
 
