@@ -1,20 +1,28 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use serde_with::{DeserializeAs, SerializeAs, TimestampMilliSeconds, TimestampSeconds};
+use crate::realtime::utils::deserialize_from_str;
 
-use crate::{CharacterID, FactionID};
+use crate::{CharacterID, FactionID, HeadID, TitleID};
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct Model {
+    #[serde(deserialize_with = "deserialize_from_str")]
     pub character_id: CharacterID,
     pub name: Name,
+    #[serde(deserialize_with = "deserialize_from_str")]
     pub faction_id: FactionID,
-    pub head_id: String,
-    pub title_id: String,
+    #[serde(deserialize_with = "deserialize_from_str")]
+    pub head_id: HeadID,
+    #[serde(deserialize_with = "deserialize_from_str")]
+    pub title_id: TitleID,
     pub times: Times,
     pub certs: Certs,
     pub battle_rank: BattleRank,
     pub profile_id: String,
     pub daily_ribbon: DailyRibbon,
-    pub prestige_level: String,
+    #[serde(deserialize_with = "deserialize_from_str")]
+    pub prestige_level: u8,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
@@ -25,32 +33,61 @@ pub struct Name {
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct Times {
-    pub creation: String,
-    pub creation_date: String,
-    pub last_save: String,
-    pub last_save_date: String,
-    pub last_login: String,
-    pub last_login_date: String,
-    pub login_count: String,
-    pub minutes_played: String,
+    #[serde(
+        deserialize_with = "TimestampSeconds::<String>::deserialize_as",
+        serialize_with = "TimestampMilliSeconds::<i64>::serialize_as"
+    )]
+    pub creation: DateTime<Utc>,
+    creation_date: String,
+    #[serde(
+        deserialize_with = "TimestampSeconds::<String>::deserialize_as",
+        serialize_with = "TimestampMilliSeconds::<i64>::serialize_as"
+    )]
+    pub last_save: DateTime<Utc>,
+    last_save_date: String,
+    #[serde(
+        deserialize_with = "TimestampSeconds::<String>::deserialize_as",
+        serialize_with = "TimestampMilliSeconds::<i64>::serialize_as"
+    )]
+    pub last_login: DateTime<Utc>,
+    last_login_date: String,
+    #[serde(deserialize_with = "deserialize_from_str")]
+    pub login_count: u64,
+    #[serde(deserialize_with = "deserialize_from_str")]
+    pub minutes_played: u32,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct Certs {
-    pub earned_points: String,
-    pub gifted_points: String,
-    pub spent_points: String,
-    pub available_points: String,
-    pub percent_to_next: String,
+    #[serde(deserialize_with = "deserialize_from_str")]
+    pub earned_points: u32,
+    #[serde(deserialize_with = "deserialize_from_str")]
+    pub gifted_points: u32,
+    #[serde(deserialize_with = "deserialize_from_str")]
+    pub spent_points: u32,
+    #[serde(deserialize_with = "deserialize_from_str")]
+    pub available_points: u16,
+    #[serde(deserialize_with = "deserialize_from_str")]
+    pub percent_to_next: u8,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct BattleRank {
-    pub percent_to_next: String,
-    pub value: String,
+    #[serde(deserialize_with = "deserialize_from_str")]
+    pub percent_to_next: u8,
+    #[serde(deserialize_with = "deserialize_from_str")]
+    pub value: u8,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct DailyRibbon {
-    pub count: String,
+    // TODO: determine correct datatype
+    #[serde(deserialize_with = "deserialize_from_str")]
+    pub count: u16,
+    #[serde(
+        deserialize_with = "TimestampSeconds::<String>::deserialize_as",
+        serialize_with = "TimestampMilliSeconds::<i64>::serialize_as"
+    )]
+    pub time: DateTime<Utc>,
+    date: String
 }

@@ -18,7 +18,7 @@ pub struct Root {
     )]
     pub time_created: DateTime<Utc>,
     // Do we need this one below since the above field makes it redundant?
-    pub time_created_date: String,
+    time_created_date: String,
     #[serde(deserialize_with = "deserialize_from_str")]
     pub leader_character_id: CharacterID,
     #[serde(deserialize_with = "deserialize_from_str")]
