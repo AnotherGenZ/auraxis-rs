@@ -1,5 +1,6 @@
 mod constants;
 mod realtime;
+mod rest;
 
 pub use constants::*;
 pub use realtime::client;
@@ -26,3 +27,6 @@ pub type ExperienceID = u16;
 pub type VehicleID = u16;
 pub type WeaponID = u32;
 pub type FiremodeID = u32;
+pub type FactionID = u8;
+pub type HeadID = u16;
+pub type TitleID = u16;

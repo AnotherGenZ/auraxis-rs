@@ -1,7 +1,7 @@
 pub mod client;
 pub mod event;
 pub mod subscription;
-mod utils;
+pub mod utils;
 
 use event::Event;
 use serde;
