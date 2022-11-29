@@ -1,24 +1,28 @@
-use std::error::Error;
-use tokio;
-use auraxis::{client::{RealtimeClient, RealtimeClientConfig}, event::Event};
-use auraxis::event::EventNames;
-use auraxis::subscription::{SubscriptionSettings, EventSubscription, CharacterSubscription, WorldSubscription};
+use auraxis::realtime::event::EventNames;
+use auraxis::realtime::subscription::{
+    CharacterSubscription, EventSubscription, SubscriptionSettings, WorldSubscription,
+};
+use auraxis::realtime::{
+    client::{RealtimeClient, RealtimeClientConfig},
+    event::Event,
+};
 use auraxis::WorldID;
-use tracing_subscriber;
+use std::error::Error;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn Error>> {
     tracing_subscriber::fmt()
-    .with_max_level(tracing::Level::DEBUG)
-    .with_target(false)
-    .init();
+        .with_max_level(tracing::Level::DEBUG)
+        .with_target(false)
+        .init();
+
     let config = RealtimeClientConfig {
         service_id: "example".to_string(),
         ..RealtimeClientConfig::default()
     };
 
     let subscription = SubscriptionSettings {
-        event_names: Some(EventSubscription::Ids(vec!(EventNames::PlayerLogin))),
+        event_names: Some(EventSubscription::Ids(vec![EventNames::PlayerLogin])),
         characters: Some(CharacterSubscription::All),
         worlds: Some(WorldSubscription::Ids(vec![WorldID::Emerald])),
         logical_and_characters_with_worlds: Some(true),
