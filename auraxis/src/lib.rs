@@ -1,10 +1,10 @@
+#![feature(type_alias_impl_trait)]
+
+pub mod api;
 mod constants;
-mod realtime;
+pub mod realtime;
 
 pub use constants::*;
-pub use realtime::client;
-pub use realtime::event;
-pub use realtime::subscription;
 
 use thiserror::Error;
 
@@ -14,6 +14,8 @@ pub enum AuraxisError {
     WebSocketError(#[from] tokio_tungstenite::tungstenite::Error),
     #[error("Ser(de) error")]
     SerdeError(#[from] serde_json::Error),
+    #[error("Http error")]
+    HttpError(#[from] reqwest::Error),
     #[error(transparent)]
     Unknown(#[from] anyhow::Error),
 }

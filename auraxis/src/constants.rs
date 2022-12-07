@@ -4,7 +4,7 @@ use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 
 #[repr(i16)]
-#[derive(Serialize, Deserialize, Copy, Clone, Eq, Debug, PartialEq, TryFromPrimitive, IntoPrimitive)]
+#[derive(Serialize, Deserialize, Copy, Clone, Eq, Debug, PartialEq, Hash, TryFromPrimitive, IntoPrimitive)]
 pub enum Loadout {
     Unknown = 0,
     NCInfiltrator = 1,
@@ -45,7 +45,7 @@ impl FromStr for Loadout {
 }
 
 #[repr(i16)]
-#[derive(Serialize, Deserialize, Copy, Clone, Eq, Debug, PartialEq, TryFromPrimitive, IntoPrimitive)]
+#[derive(Serialize, Deserialize, Copy, Clone, Eq, Debug, PartialEq, Hash, TryFromPrimitive, IntoPrimitive)]
 pub enum Faction {
     Unknown = 0,
     VS = 1,
@@ -66,7 +66,7 @@ impl FromStr for Faction {
 }
 
 #[repr(i16)]
-#[derive(Serialize, Deserialize, Copy, Clone, Eq, Debug, PartialEq, TryFromPrimitive, IntoPrimitive)]
+#[derive(Serialize, Deserialize, Copy, Clone, Eq, Debug, PartialEq, Hash, TryFromPrimitive, IntoPrimitive)]
 pub enum WorldID {
     Jaeger = 19,
     Briggs = 25,

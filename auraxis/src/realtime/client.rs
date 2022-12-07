@@ -1,10 +1,7 @@
-use std::sync::Arc;
 use super::Message as CensusMessage;
-use crate::realtime::{
-    Action, CharacterSubscription, Event, EventSubscription, Service, SubscriptionSettings,
-    WorldSubscription, REALTIME_URL,
-};
+use crate::realtime::{Action, Event, SubscriptionSettings, REALTIME_URL};
 use crate::AuraxisError;
+use std::sync::Arc;
 
 use std::time::Duration;
 
@@ -18,7 +15,7 @@ use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
 use tracing::{debug, error, info};
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct RealtimeClientConfig {
     pub environment: String,
     pub service_id: String,
@@ -30,12 +27,12 @@ impl Default for RealtimeClientConfig {
         Self {
             environment: String::from("ps2"),
             service_id: String::from(""),
-            realtime_url: None
+            realtime_url: None,
         }
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct RealtimeClient {
     config: Arc<RealtimeClientConfig>,
     ws_send: Option<Sender<Message>>,
@@ -54,7 +51,9 @@ impl RealtimeClient {
     pub async fn connect(&mut self) -> Result<Receiver<Event>, AuraxisError> {
         let census_addr = format!(
             "{}?environment={}&service-id=s:{}",
-            self.config.realtime_url.as_deref().unwrap_or(REALTIME_URL), self.config.environment, self.config.service_id
+            self.config.realtime_url.as_deref().unwrap_or(REALTIME_URL),
+            self.config.environment,
+            self.config.service_id
         );
 
         let (websocket, _res) = connect_async(census_addr).await?;
@@ -64,26 +63,30 @@ impl RealtimeClient {
         let (event_stream_tx, event_stream_rx) = tokio::sync::mpsc::channel::<Event>(1000);
 
         self.ws_send = Some(ws_send_tx.clone());
-        
+
         tokio::spawn(Self::send_ws(ws_send, ws_send_rx));
         tokio::spawn(Self::ping_ws(ws_send_tx.clone()));
         tokio::spawn(Self::resubscribe(self.clone(), ws_send_tx.clone()));
-        tokio::spawn(Self::read_ws(self.clone(), ws_send_tx, ws_recv, event_stream_tx));
+        tokio::spawn(Self::read_ws(
+            self.clone(),
+            ws_send_tx,
+            ws_recv,
+            event_stream_tx,
+        ));
 
         Ok(event_stream_rx)
     }
 
-    pub fn subscribe(
-        &mut self,
-        subscription: SubscriptionSettings
-    ) {
+    pub fn subscribe(&mut self, subscription: SubscriptionSettings) {
         self.subscription_config = Arc::new(subscription)
     }
 
     async fn resubscribe(self, ws_send: Sender<Message>) -> Result<(), AuraxisError> {
         loop {
             ws_send
-                .send(Message::Text(serde_json::to_string(&Action::Subscribe((*self.subscription_config).clone()))?))
+                .send(Message::Text(serde_json::to_string(&Action::Subscribe(
+                    (*self.subscription_config).clone(),
+                ))?))
                 .await
                 .expect("WS send channel closed");
 
@@ -125,11 +128,15 @@ impl RealtimeClient {
                 Ok(msg) => {
                     // debug!("Received: {:?}", msg.to_string());
                     tokio::spawn(
-                        Self::handle_ws_msg(self.clone(), ws_send.clone(), event_stream_tx.clone(), msg).map_err(
-                            |err| {
-                                error!("{:?}", err);
-                            },
-                        ),
+                        Self::handle_ws_msg(
+                            self.clone(),
+                            ws_send.clone(),
+                            event_stream_tx.clone(),
+                            msg,
+                        )
+                        .map_err(|err| {
+                            error!("{:?}", err);
+                        }),
                     );
                 }
                 Err(err) => {
@@ -174,10 +181,17 @@ impl RealtimeClient {
                         if connected {
                             info!("Connected to Census!");
 
-                            debug!("Subscribing with {:?}", serde_json::to_string(&Action::Subscribe((*self.subscription_config).clone()))?);
+                            debug!(
+                                "Subscribing with {:?}",
+                                serde_json::to_string(&Action::Subscribe(
+                                    (*self.subscription_config).clone()
+                                ))?
+                            );
 
                             ws_send
-                                .send(Message::Text(serde_json::to_string(&Action::Subscribe((*self.subscription_config).clone()))?))
+                                .send(Message::Text(serde_json::to_string(&Action::Subscribe(
+                                    (*self.subscription_config).clone(),
+                                ))?))
                                 .await
                                 .expect("WS send channel closed");
                         }
