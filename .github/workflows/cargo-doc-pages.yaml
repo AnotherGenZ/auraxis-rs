@@ -1,4 +1,16 @@
-on: [push]
+on:
+  push:
+    # branches:
+    #   - master
+    paths:
+      - '**.rs'
+      - '**.toml'
+      - '**.md'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'LICENSE'
+      - 'README.md'
+      - '.github/workflows/cargo-doc-pages.yaml'
 
 name: Publish cargo doc to pages
 
@@ -15,7 +27,6 @@ jobs:
       - run: cargo doc --release --all-features --no-deps
       - uses: actions/upload-pages-artifact@v1
         with:
-          name: docs
           path: target/doc
 
   publish-docs:
@@ -34,15 +45,8 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/download-pages-artifact@v1
-        with:
-          name: docs
-          path: target/doc
-      - uses: actions/deploy-pages@v1
-        with:
-          branch: gh-pages
-          folder: target/doc
-          commit-message: Deploy docs
+      - name: Deploy to Github Pages
+        uses: actions/deploy-pages@v1
+        id: deployment
 
 
