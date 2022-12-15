@@ -11,6 +11,7 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: nightly
+          default: true
       - run: cargo doc --release --all-features --no-deps
       - uses: actions/upload-pages-artifact@v1
         with:
