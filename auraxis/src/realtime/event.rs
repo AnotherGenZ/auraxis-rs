@@ -397,7 +397,10 @@ pub struct ItemAdded {
     pub character_id: CharacterID,
     #[serde(deserialize_with = "deserialize_from_str")]
     pub context: String,
-    #[serde(deserialize_with = "deserialize_from_str")]
+    #[serde(
+        deserialize_with = "TimestampSeconds::<String>::deserialize_as",
+        serialize_with = "TimestampMilliSeconds::<i64>::serialize_as"
+    )]
     pub timestamp: DateTime<Utc>,
     #[serde(deserialize_with = "deserialize_from_str")]
     pub item_count: u8,
