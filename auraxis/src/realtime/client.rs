@@ -1,7 +1,9 @@
 use super::Message as CensusMessage;
 use crate::realtime::{Action, Event, SubscriptionSettings, REALTIME_URL};
 use crate::AuraxisError;
+use std::borrow::BorrowMut;
 use std::sync::Arc;
+use tokio::sync::Mutex;
 
 use std::time::Duration;
 
@@ -36,7 +38,7 @@ impl Default for RealtimeClientConfig {
 pub struct RealtimeClient {
     config: Arc<RealtimeClientConfig>,
     ws_send: Option<Sender<Message>>,
-    subscription_config: Arc<SubscriptionSettings>,
+    subscription_config: Arc<Mutex<SubscriptionSettings>>,
 }
 
 impl RealtimeClient {
@@ -44,7 +46,7 @@ impl RealtimeClient {
         Self {
             config: Arc::new(config),
             ws_send: None,
-            subscription_config: Arc::new(SubscriptionSettings::default()),
+            subscription_config: Arc::new(Mutex::new(SubscriptionSettings::default())),
         }
     }
 
@@ -77,15 +79,24 @@ impl RealtimeClient {
         Ok(event_stream_rx)
     }
 
-    pub fn subscribe(&mut self, subscription: SubscriptionSettings) {
-        self.subscription_config = Arc::new(subscription)
+    pub async fn subscribe(&mut self, new_subscription: SubscriptionSettings) {
+        let mut subscription = self.subscription_config.lock().await;
+        *subscription = new_subscription;
+        if let Some(ws_send) = self.ws_send.borrow_mut() {
+            ws_send
+                .send(Message::Text(
+                    serde_json::to_string(&Action::Subscribe(subscription.clone())).unwrap(),
+                ))
+                .await
+                .expect("WS send channel closed");
+        }
     }
 
     async fn resubscribe(self, ws_send: Sender<Message>) -> Result<(), AuraxisError> {
         loop {
             ws_send
                 .send(Message::Text(serde_json::to_string(&Action::Subscribe(
-                    (*self.subscription_config).clone(),
+                    self.subscription_config.lock().await.clone(),
                 ))?))
                 .await
                 .expect("WS send channel closed");
@@ -181,16 +192,15 @@ impl RealtimeClient {
                         if connected {
                             info!("Connected to Census!");
 
+                            let subscription = self.subscription_config.lock().await;
                             debug!(
                                 "Subscribing with {:?}",
-                                serde_json::to_string(&Action::Subscribe(
-                                    (*self.subscription_config).clone()
-                                ))?
+                                serde_json::to_string(&Action::Subscribe(subscription.clone()))?
                             );
 
                             ws_send
                                 .send(Message::Text(serde_json::to_string(&Action::Subscribe(
-                                    (*self.subscription_config).clone(),
+                                    subscription.clone(),
                                 ))?))
                                 .await
                                 .expect("WS send channel closed");
