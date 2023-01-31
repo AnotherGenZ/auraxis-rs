@@ -250,6 +250,8 @@ pub struct GainExperience {
     pub zone_id: ZoneID,
     #[serde(deserialize_with = "deserialize_from_str")]
     pub amount: u16,
+    #[serde(deserialize_with = "deserialize_from_str")]
+    pub team_id: Faction,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone, Hash)]
