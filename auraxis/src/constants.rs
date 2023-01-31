@@ -34,7 +34,7 @@ pub enum Loadout {
 }
 
 impl Loadout {
-    fn getFaction(&self) -> Faction {
+    pub fn getFaction(&self) -> Faction {
         match self {
             Loadout::Unknown => Faction::Unknown,
             Loadout::NCInfiltrator => Faction::NC,
