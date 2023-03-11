@@ -144,7 +144,9 @@ impl RealtimeClient {
 
                     match err {
                         Error::ConnectionClosed => {
-                            error!("Connection closed");
+                            // We panic since a reconnect is not implemented
+                            // TODO: Implement reconnect
+                            panic!("Connection closed");
                         }
                         Error::AlreadyClosed => {}
                         Error::Io(_) => {}
