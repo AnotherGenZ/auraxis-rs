@@ -12,7 +12,7 @@ serde_json = "1.0.85"
 serde_with = { version = "2.0.0", features = ["chrono"] }
 tracing = "0.1.36"
 tokio = { version = "1.21.0", features = ["sync", "time", "rt", "net", "macros"] }
-tokio-tungstenite = { version = "0.17.2", features = ["connect", "rustls-tls-native-roots"] }
+tokio-tungstenite = { version = "0.18.0", features = ["connect", "rustls-tls-native-roots"] }
 futures = "0.3.24"
 futures-util = "0.3.24"
 thiserror = "1.0.34"
