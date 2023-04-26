@@ -49,6 +49,9 @@ impl RealtimeClient {
         describe_counter!("realtime_total_closed_connections", "Total number of closed connections to Census stream");
         describe_counter!("realtime_total_connections", "Total number of connections to Census stream");
         describe_counter!("realtime_messages_received_heartbeat", "Total number of heartbeat messages received from Census stream");
+        describe_counter!("realtime_total_pings", "Total number of ping messages sent to Census stream, may include errors");
+        describe_counter!("realtime_total_ping_errors", "Total number of ping messages that failed to receive a response from Census stream");
+        describe_counter!("realtime_total_resubscriptions", "Total number of resubscriptions to Census stream");
 
         Self {
             config: Arc::new(config),
@@ -138,6 +141,7 @@ impl RealtimeClient {
                 Ok(_) => {}
                 Err(err) => {
                     error!("Failed to send ping message: {}", err);
+                    increment_counter!("realtime_total_ping_errors");
                     // TODO: Reconnect
                 }
             }
