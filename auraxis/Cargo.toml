@@ -21,6 +21,7 @@ anyhow = "1.0.64"
 reqwest = { version = "0.11.12", default-features = false, features = ["json", "rustls-tls"] }
 async-trait = "0.1.58"
 auraxis_macros = {version = "0.1.0", path = "../auraxis_macros"}
+metrics = "0.21.0"
 
 [dev-dependencies]
 tracing-subscriber = "0.3"
