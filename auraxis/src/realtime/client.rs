@@ -8,7 +8,7 @@ use std::time::Duration;
 use futures::TryFutureExt;
 use futures_util::stream::{SplitSink, SplitStream};
 use futures_util::{SinkExt, StreamExt};
-use metrics::increment_counter;
+use metrics::{increment_counter, describe_counter};
 use tokio::net::TcpStream;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio_tungstenite::tungstenite::error::Error;
@@ -48,6 +48,13 @@ impl RealtimeClient {
             ws_send: None,
             subscription_config: Arc::new(SubscriptionSettings::default()),
         }
+
+        describe_counter!("realtime_messages_total_sent", "Total number of messages sent to Census stream");
+        describe_counter!("realtime_messages_received_total", "Total number of messages received from Census stream");
+        describe_counter!("realtime_messages_received_total_errored", "Total number of messages received from Census stream that errored");
+        describe_counter!("realtime_total_closed_connections", "Total number of closed connections to Census stream");
+        describe_counter!("realtime_total_connections", "Total number of connections to Census stream");
+        describe_counter!("realtime_messages_received_heartbeat", "Total number of heartbeat messages received from Census stream");
     }
 
     /// Send a message to the websocket connection.
@@ -109,7 +116,7 @@ impl RealtimeClient {
 
             match res {
                 Ok(_) => {
-                    increment_counter!("realtime.total_resubscriptions");
+                    increment_counter!("realtime_total_resubscriptions");
                     tokio::time::sleep(Duration::from_secs(60 * 30)).await;
                 }
                 Err(err) => {
@@ -135,7 +142,7 @@ impl RealtimeClient {
                 }
             }
 
-            increment_counter!("realtime.total_pings");
+            increment_counter!("realtime_total_pings");
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
     }
@@ -147,7 +154,7 @@ impl RealtimeClient {
         while let Some(msg) = ws_send_rx.recv().await {
             // debug!("Sent: {:?}", msg.to_string());
             ws_send.send(msg).await?;
-            increment_counter!("realtime.messages.total_sent");
+            increment_counter!("realtime_messages_total_sent");
         }
 
         Ok(())
@@ -160,7 +167,7 @@ impl RealtimeClient {
         event_stream_tx: Sender<Event>,
     ) -> Result<(), AuraxisError> {
         while let Some(message) = ws_recv.next().await {
-            increment_counter!("realtime.messages.received.total");
+            increment_counter!("realtime_messages_received_total");
             match message {
                 Ok(msg) => {
                     // debug!("Received: {:?}", msg.to_string());
@@ -172,19 +179,19 @@ impl RealtimeClient {
                             msg,
                         )
                         .map_err(|err| {
-                            increment_counter!("realtime.messages.received.total_errored");
+                            increment_counter!("realtime_messages_received_total_errored");
                             error!("{:?}", err);
                         }),
                     );
                 }
                 Err(err) => {
                     //println!("{:?}", &err);
-                    increment_counter!("realtime.messages.received.total_errored");
+                    increment_counter!("realtime_messages_received_total_errored");
 
                     match err {
                         Error::ConnectionClosed => {
                             error!("Connection closed");
-                            increment_counter!("realtime.total_closed_connections");
+                            increment_counter!("realtime_total_closed_connections");
                             // TODO: Reconnect
                         }
                         Error::AlreadyClosed
@@ -222,7 +229,7 @@ impl RealtimeClient {
                         if connected {
                             info!("Connected to Census!");
 
-                            increment_counter!("realtime.total_connections");
+                            increment_counter!("realtime_total_connections");
 
                             debug!(
                                 "Subscribing with {:?}",
@@ -240,7 +247,7 @@ impl RealtimeClient {
                         }
                     }
                     CensusMessage::Heartbeat { .. } => {
-                        increment_counter!("realtime.messages.received.heartbeat");
+                        increment_counter!("realtime_messages_received_heartbeat");
                     }
                     CensusMessage::ServiceStateChanged { .. } => {}
                     CensusMessage::ServiceMessage { payload } => {
