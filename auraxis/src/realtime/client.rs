@@ -43,18 +43,18 @@ pub struct RealtimeClient {
 impl RealtimeClient {
     #[must_use]
     pub fn new(config: RealtimeClientConfig) -> Self {
-        Self {
-            config: Arc::new(config),
-            ws_send: None,
-            subscription_config: Arc::new(SubscriptionSettings::default()),
-        }
-
         describe_counter!("realtime_messages_total_sent", "Total number of messages sent to Census stream");
         describe_counter!("realtime_messages_received_total", "Total number of messages received from Census stream");
         describe_counter!("realtime_messages_received_total_errored", "Total number of messages received from Census stream that errored");
         describe_counter!("realtime_total_closed_connections", "Total number of closed connections to Census stream");
         describe_counter!("realtime_total_connections", "Total number of connections to Census stream");
         describe_counter!("realtime_messages_received_heartbeat", "Total number of heartbeat messages received from Census stream");
+
+        Self {
+            config: Arc::new(config),
+            ws_send: None,
+            subscription_config: Arc::new(SubscriptionSettings::default()),
+        }
     }
 
     /// Send a message to the websocket connection.
