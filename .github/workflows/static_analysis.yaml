@@ -1,0 +1,119 @@
+name: Static analysis
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - .github/workflows/lint.yaml
+      - auraxis_macros/**
+      - auraxis/**
+      - Cargo.toml
+      - Cargo.lock
+      - build.rs
+      - rust-toolchain.toml
+  pull_request:
+    branches:
+      - master
+    paths:
+      - .github/workflows/lint.yaml
+      - auraxis_macros/**
+      - auraxis/**
+      - Cargo.toml
+      - Cargo.lock
+      - build.rs
+      - rust-toolchain.toml
+
+  workflow_dispatch:
+
+concurrency:
+  group: lint-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  clippy:
+    name: Cargo Clippy
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        target: [x86_64-unknown-linux-gnu]
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: true
+
+      - name: Install Rust toolchain
+        run: |
+          rustup update
+          rustup toolchain install $(cat rust-toolchain.toml | grep channel | cut -d '"' -f 2)
+          rustup default $(cat rust-toolchain.toml | grep channel | cut -d '"' -f 2)
+          rustup component add clippy
+
+      - name: Cache target directory
+        id: cache-target
+        uses: actions/cache/restore@v3
+        with:
+          path: target
+          key: ${{ matrix.target }}-target-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Run Clippy
+        run: cargo clippy --all-features --release -- -D warnings
+
+  security_audit:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        target: [x86_64-unknown-linux-gnu]
+
+    steps:
+      - uses: actions/checkout@v1
+
+      - name: Cache target directory
+        id: cache-target
+        uses: actions/cache/restore@v3
+        with:
+          path: target
+          key: ${{ matrix.target }}-target-${{ hashFiles('**/Cargo.lock') }}
+
+      - uses: actions-rs/audit-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  unused-deps:
+    name: Unused Cargo dependencies
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        target: [x86_64-unknown-linux-gnu]
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: true
+
+      - name: Install Rust toolchain
+        run: |
+          rustup update
+          rustup toolchain install $(cat rust-toolchain.toml | grep channel | cut -d '"' -f 2)
+          rustup default $(cat rust-toolchain.toml | grep channel | cut -d '"' -f 2)
+
+      - name: Cache target directory
+        id: cache-target
+        uses: actions/cache/restore@v3
+        with:
+          path: target
+          key: ${{ matrix.target }}-target-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install cargo-udeps
+        run: |
+          eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+          brew install cargo-udeps
+
+      - name: Run cargo-udeps
+        run: |
+          eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+          cargo udeps --all-targets --release --locked
