@@ -16,11 +16,12 @@ tokio-tungstenite = { version = "0.18.0", features = ["connect", "rustls-tls-nat
 futures = "0.3.24"
 futures-util = "0.3.24"
 thiserror = "1.0.34"
-num_enum = "0.5.7"
+num_enum = "0.6.1"
 anyhow = "1.0.64"
 reqwest = { version = "0.11.12", default-features = false, features = ["json", "rustls-tls"] }
 async-trait = "0.1.58"
 auraxis_macros = {version = "0.1.0", path = "../auraxis_macros"}
+metrics = "0.21.0"
 
 [dev-dependencies]
 tracing-subscriber = "0.3"
