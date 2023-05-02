@@ -1,10 +1,10 @@
 use num_enum::{IntoPrimitive, TryFromPrimitive};
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 
 #[repr(i16)]
-#[derive(Serialize, Copy, Clone, Eq, Debug, PartialEq, Hash, TryFromPrimitive, IntoPrimitive)]
+#[derive(Serialize, Deserialize, Copy, Clone, Eq, Debug, PartialEq, Hash, TryFromPrimitive, IntoPrimitive)]
 pub enum Loadout {
     Unknown = 0,
     NCInfiltrator = 1,
@@ -33,6 +33,38 @@ pub enum Loadout {
     NSMAX = 45,
 }
 
+impl Loadout {
+    pub fn get_faction(&self) -> Faction {
+        match self {
+            Loadout::Unknown => Faction::Unknown,
+            Loadout::NCInfiltrator => Faction::NC,
+            Loadout::NCLightAssault => Faction::NC,
+            Loadout::NCMedic => Faction::NC,
+            Loadout::NCEngineer => Faction::NC,
+            Loadout::NCHeavyAssault => Faction::NC,
+            Loadout::NCMAX => Faction::NC,
+            Loadout::TRInfiltrator => Faction::TR,
+            Loadout::TRLightAssault => Faction::TR,
+            Loadout::TRMedic => Faction::TR,
+            Loadout::TREngineer => Faction::TR,
+            Loadout::TRHeavyAssault => Faction::TR,
+            Loadout::TRMAX => Faction::TR,
+            Loadout::VSInfiltrator => Faction::VS,
+            Loadout::VSLightAssault => Faction::VS,
+            Loadout::VSMedic => Faction::VS,
+            Loadout::VSEngineer => Faction::VS,
+            Loadout::VSHeavyAssault => Faction::VS,
+            Loadout::VSMAX => Faction::VS,
+            Loadout::NSInfiltrator => Faction::NS,
+            Loadout::NSLightAssault => Faction::NS,
+            Loadout::NSMedic => Faction::NS,
+            Loadout::NSEngineer => Faction::NS,
+            Loadout::NSHeavyAssault => Faction::NS,
+            Loadout::NSMAX => Faction::NS,
+        }
+    }
+}
+
 impl FromStr for Loadout {
     type Err = anyhow::Error;
 
@@ -45,7 +77,7 @@ impl FromStr for Loadout {
 }
 
 #[repr(i16)]
-#[derive(Serialize, Copy, Clone, Eq, Debug, PartialEq, Hash, TryFromPrimitive, IntoPrimitive)]
+#[derive(Serialize, Deserialize, Copy, Clone, Eq, Debug, PartialEq, Hash, TryFromPrimitive, IntoPrimitive)]
 pub enum Faction {
     Unknown = 0,
     VS = 1,
@@ -66,7 +98,7 @@ impl FromStr for Faction {
 }
 
 #[repr(i16)]
-#[derive(Serialize, Copy, Clone, Eq, Debug, PartialEq, Hash, TryFromPrimitive, IntoPrimitive)]
+#[derive(Serialize, Deserialize, Copy, Clone, Eq, Debug, PartialEq, Hash, TryFromPrimitive, IntoPrimitive)]
 pub enum WorldID {
     Jaeger = 19,
     Briggs = 25,
