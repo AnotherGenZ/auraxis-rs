@@ -1,4 +1,6 @@
 #![feature(impl_trait_in_assoc_type)]
+#![allow(dead_code)]
+#![allow(unused_variables)]
 
 pub mod api;
 mod constants;

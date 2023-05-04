@@ -1,4 +1,6 @@
 #![feature(proc_macro_diagnostic)]
+#![allow(unused_variables)]
+#![allow(dead_code)]
 
 use darling::{ast::Data, util, FromDeriveInput, FromField, FromMeta};
 use proc_macro::{Diagnostic, Level, TokenStream};
