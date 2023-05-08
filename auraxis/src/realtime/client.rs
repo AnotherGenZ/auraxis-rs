@@ -43,15 +43,42 @@ pub struct RealtimeClient {
 impl RealtimeClient {
     #[must_use]
     pub fn new(config: RealtimeClientConfig) -> Self {
-        describe_counter!("realtime_messages_total_sent", "Total number of messages sent to Census stream");
-        describe_counter!("realtime_messages_received_total", "Total number of messages received from Census stream");
-        describe_counter!("realtime_messages_received_total_errored", "Total number of messages received from Census stream that errored");
-        describe_counter!("realtime_total_closed_connections", "Total number of closed connections to Census stream");
-        describe_counter!("realtime_total_connections", "Total number of connections to Census stream");
-        describe_counter!("realtime_messages_received_heartbeat", "Total number of heartbeat messages received from Census stream");
-        describe_counter!("realtime_total_pings", "Total number of ping messages sent to Census stream, may include errors");
-        describe_counter!("realtime_total_ping_errors", "Total number of ping messages that failed to receive a response from Census stream");
-        describe_counter!("realtime_total_resubscriptions", "Total number of resubscriptions to Census stream");
+        describe_counter!(
+            "realtime_messages_total_sent",
+            "Total number of messages sent to Census stream"
+        );
+        describe_counter!(
+            "realtime_messages_received_total",
+            "Total number of messages received from Census stream"
+        );
+        describe_counter!(
+            "realtime_messages_received_total_errored",
+            "Total number of messages received from Census stream that errored"
+        );
+        describe_counter!(
+            "realtime_total_closed_connections",
+            "Total number of closed connections to Census stream"
+        );
+        describe_counter!(
+            "realtime_total_connections",
+            "Total number of connections to Census stream"
+        );
+        describe_counter!(
+            "realtime_messages_received_heartbeat",
+            "Total number of heartbeat messages received from Census stream"
+        );
+        describe_counter!(
+            "realtime_total_pings",
+            "Total number of ping messages sent to Census stream, may include errors"
+        );
+        describe_counter!(
+            "realtime_total_ping_errors",
+            "Total number of ping messages that failed to receive a response from Census stream"
+        );
+        describe_counter!(
+            "realtime_total_resubscriptions",
+            "Total number of resubscriptions to Census stream"
+        );
 
         Self {
             config: Arc::new(config),
@@ -134,15 +161,22 @@ impl RealtimeClient {
     }
 
     async fn ping_ws(ping_send: Sender<Message>) -> Result<(), AuraxisError> {
+        let max_ping_fails = 5;
+        let mut ping_fails = 0;
         loop {
             let send_result = ping_send.send(Message::Ping(b"Hello".to_vec())).await;
 
             match send_result {
-                Ok(_) => {}
+                Ok(_) => {
+                    ping_fails -= 1;
+                }
                 Err(err) => {
                     error!("Failed to send ping message: {}", err);
                     increment_counter!("realtime_total_ping_errors");
-                    // TODO: Reconnect
+                    ping_fails += 1;
+                    if ping_fails > max_ping_fails {
+                        panic!("Failed to send ping message: {max_ping_fails}");
+                    }
                 }
             }
 
