@@ -169,18 +169,18 @@ impl RealtimeClient {
             match send_result {
                 Ok(_) => {
                     ping_fails -= 1;
+                    increment_counter!("realtime_total_pings");
                 }
                 Err(err) => {
                     error!("Failed to send ping message: {}", err);
                     increment_counter!("realtime_total_ping_errors");
                     ping_fails += 1;
                     if ping_fails > max_ping_fails {
-                        panic!("Failed to send ping message: {max_ping_fails}");
+                        panic!("Failed to send ping message: {max_ping_fails} times in a row. Exiting");
                     }
                 }
             }
 
-            increment_counter!("realtime_total_pings");
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
     }
