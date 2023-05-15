@@ -9,14 +9,14 @@ use std::time::Duration;
 
 use futures::TryFutureExt;
 use futures_util::stream::{SplitSink, SplitStream};
-use futures_util::{SinkExt, StreamExt, Future};
-use metrics::{increment_counter, describe_counter};
-use stream_reconnect::{UnderlyingStream, ReconnectStream};
+use futures_util::{Future, SinkExt, StreamExt};
+use metrics::{describe_counter, increment_counter};
+use stream_reconnect::{ReconnectStream, UnderlyingStream};
 use tokio::net::TcpStream;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio_tungstenite::tungstenite::error::Error;
-use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::tungstenite::handshake::client::Response;
+use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
 use tracing::{debug, error, info};
 
@@ -184,7 +184,9 @@ impl RealtimeClient {
                     increment_counter!("realtime_total_ping_errors");
                     ping_fails += 1;
                     if ping_fails > max_ping_fails {
-                        panic!("Failed to send ping message: {max_ping_fails} times in a row. Exiting");
+                        panic!(
+                            "Failed to send ping message: {max_ping_fails} times in a row. Exiting"
+                        );
                     }
                 }
             }
@@ -329,7 +331,6 @@ impl RealtimeClient {
     }
 }
 
-
 impl UnderlyingStream<String, Result<Message, Error>, Error> for WebSocket {
     // Establishes connection.
     // Additionally, this will be used when reconnect tries are attempted.
@@ -344,13 +345,13 @@ impl UnderlyingStream<String, Result<Message, Error>, Error> for WebSocket {
     // The following errors are considered disconnect errors.
     fn is_write_disconnect_error(&self, err: &Error) -> bool {
         matches!(
-                err,
-                Error::ConnectionClosed
-                    | Error::AlreadyClosed
-                    | Error::Io(_)
-                    | Error::Tls(_)
-                    | Error::Protocol(_)
-            )
+            err,
+            Error::ConnectionClosed
+                | Error::AlreadyClosed
+                | Error::Io(_)
+                | Error::Tls(_)
+                | Error::Protocol(_)
+        )
     }
 
     // If an `Err` is read, then there might be an disconnection.

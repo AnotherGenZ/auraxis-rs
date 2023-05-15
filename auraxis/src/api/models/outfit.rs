@@ -1,5 +1,5 @@
-use serde::Deserialize;
 use crate::api::CensusModel;
+use serde::Deserialize;
 
 #[derive(Deserialize, Debug)]
 pub struct Outfit {
