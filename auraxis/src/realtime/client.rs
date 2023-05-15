@@ -1,18 +1,22 @@
 use super::Message as CensusMessage;
 use crate::realtime::{Action, Event, SubscriptionSettings, REALTIME_URL};
 use crate::AuraxisError;
+use std::io;
+use std::pin::Pin;
 use std::sync::Arc;
 
 use std::time::Duration;
 
 use futures::TryFutureExt;
 use futures_util::stream::{SplitSink, SplitStream};
-use futures_util::{SinkExt, StreamExt};
+use futures_util::{SinkExt, StreamExt, Future};
 use metrics::{increment_counter, describe_counter};
+use stream_reconnect::{UnderlyingStream, ReconnectStream};
 use tokio::net::TcpStream;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio_tungstenite::tungstenite::error::Error;
 use tokio_tungstenite::tungstenite::Message;
+use tokio_tungstenite::tungstenite::handshake::client::Response;
 use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
 use tracing::{debug, error, info};
 
@@ -39,6 +43,10 @@ pub struct RealtimeClient {
     ws_send: Option<Sender<Message>>,
     subscription_config: Arc<SubscriptionSettings>,
 }
+
+struct WebSocket(WebSocketStream<MaybeTlsStream<TcpStream>>, Response);
+
+type ReconnectingWS = ReconnectStream<WebSocket, String, Result<Message, Error>, Error>;
 
 impl RealtimeClient {
     #[must_use]
@@ -318,5 +326,44 @@ impl RealtimeClient {
         }
 
         Ok(())
+    }
+}
+
+
+impl UnderlyingStream<String, Result<Message, Error>, Error> for WebSocket {
+    // Establishes connection.
+    // Additionally, this will be used when reconnect tries are attempted.
+    fn establish(addr: String) -> Pin<Box<dyn Future<Output = Result<Self, Error>> + Send>> {
+        Box::pin(async move {
+            // In this case, we are trying to connect to the WebSocket endpoint
+            let (websocket, res) = connect_async(addr).await?;
+            Ok(WebSocket(websocket, res))
+        })
+    }
+
+    // The following errors are considered disconnect errors.
+    fn is_write_disconnect_error(&self, err: &Error) -> bool {
+        matches!(
+                err,
+                Error::ConnectionClosed
+                    | Error::AlreadyClosed
+                    | Error::Io(_)
+                    | Error::Tls(_)
+                    | Error::Protocol(_)
+            )
+    }
+
+    // If an `Err` is read, then there might be an disconnection.
+    fn is_read_disconnect_error(&self, item: &Result<Message, Error>) -> bool {
+        if let Err(e) = item {
+            self.is_write_disconnect_error(e)
+        } else {
+            false
+        }
+    }
+
+    // Return "Exhausted" if all retry attempts are failed.
+    fn exhaust_err() -> Error {
+        Error::Io(io::Error::new(io::ErrorKind::Other, "Exhausted"))
     }
 }
