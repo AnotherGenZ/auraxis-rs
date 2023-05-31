@@ -2,6 +2,7 @@
 #![allow(dead_code)]
 #![allow(unused_variables)]
 
+#[cfg(feature = "api")]
 pub mod api;
 mod constants;
 pub mod realtime;
@@ -17,6 +18,7 @@ pub enum AuraxisError {
     #[error("Ser(de) error")]
     SerdeError(#[from] serde_json::Error),
     #[error("Http error")]
+    #[cfg(feature = "api")]
     HttpError(#[from] reqwest::Error),
     #[error(transparent)]
     Unknown(#[from] anyhow::Error),

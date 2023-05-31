@@ -18,14 +18,17 @@ futures-util = "0.3.24"
 thiserror = "1.0.34"
 num_enum = "0.6.1"
 anyhow = "1.0.64"
-reqwest = { version = "0.11.12", default-features = false, features = ["json", "rustls-tls"] }
+reqwest = { version = "0.11.12", default-features = false, features = ["json", "rustls-tls"], optional = true }
 async-trait = "0.1.58"
-auraxis_macros = {version = "0.1.0", path = "../auraxis_macros"}
+auraxis_macros = { version = "0.1.0", path = "../auraxis_macros", optional = true }
 metrics = "0.21.0"
 stream-reconnect = "0.3.4"
 
 [dev-dependencies]
 tracing-subscriber = "0.3"
+
+[features]
+api = ["dep:auraxis_macros", "dep:reqwest"]
 
 [lib]
 name = "auraxis"
