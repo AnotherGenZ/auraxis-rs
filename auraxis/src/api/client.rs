@@ -58,11 +58,7 @@ impl ApiClient {
 
         let url = format!("{}/{}", url, collection.clone().into());
 
-        CensusRequestBuilder::new(
-            self.http_client.clone(),
-            collection.into(),
-            url,
-        )
+        CensusRequestBuilder::new(self.http_client.clone(), collection.into(), url)
     }
 
     pub async fn count(&self, _collection: CensusCollection) {

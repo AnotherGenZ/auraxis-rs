@@ -1,4 +1,6 @@
 #![feature(proc_macro_diagnostic)]
+#![allow(unused_variables)]
+#![allow(dead_code)]
 
 use darling::{ast::Data, util, FromDeriveInput, FromField, FromMeta};
 use proc_macro::{Diagnostic, Level, TokenStream};
@@ -53,7 +55,7 @@ pub fn derive_census_query(input: TokenStream) -> TokenStream {
 
                     let main = if data.fields.len() == 1 {
                         Some(&data.fields[0])
-                    } else if data.fields.len() == 0 {
+                    } else if data.fields.is_empty() {
                         Diagnostic::spanned(args.ident.span().unwrap(), Level::Error, "Empty struct not allowed").emit();
 
                         None
@@ -62,7 +64,7 @@ pub fn derive_census_query(input: TokenStream) -> TokenStream {
                             0 => {
                                 if let Some(main_field_name) = args.main {
                                     let main_field = data.fields.iter().find(|field| {
-                                        field.ident.as_ref().unwrap().to_string() == main_field_name
+                                        *field.ident.as_ref().unwrap() == main_field_name
                                     });
 
                                     if main_field.is_none() {
