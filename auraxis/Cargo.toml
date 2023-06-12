@@ -39,3 +39,4 @@ name = "realtime"
 
 [[example]]
 name = "api"
+required-features = ["api"]

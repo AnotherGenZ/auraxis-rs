@@ -1,2 +1,3 @@
 [workspace]
 members = ["auraxis", "auraxis_macros"]
+resolver = "2"
