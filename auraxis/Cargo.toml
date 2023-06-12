@@ -1,5 +1,7 @@
 [package]
 name = "auraxis"
+description = "API & ESS client for Planetside 2 Census API"
+license = "MIT"
 version = "0.2.0"
 edition = "2021"
 
