@@ -85,7 +85,7 @@ pub enum Event {
     ContinentUnlock(ContinentUnlock),
     FacilityControl(FacilityControl),
     MetagameEvent(MetagameEvent),
-    ItemAdded,
+    ItemAdded(ItemAdded),
     AchievementEarned,
     SkillAdded,
     BattleRankUp,
@@ -127,7 +127,7 @@ impl Display for Event {
             Event::MetagameEvent(_) => {
                 write!(f, "MetagameEvent")
             }
-            Event::ItemAdded => {
+            Event::ItemAdded(_) => {
                 write!(f, "ItemAdded")
             }
             Event::AchievementEarned => {
@@ -389,6 +389,27 @@ pub struct MetagameEvent {
     #[serde(deserialize_with = "deserialize_from_str")]
     pub metagame_event_state: u8,
     pub metagame_event_state_name: String,
+    #[serde(deserialize_with = "deserialize_from_str")]
+    pub zone_id: ZoneID,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone, Hash)]
+pub struct ItemAdded {
+    #[serde(deserialize_with = "deserialize_from_str")]
+    pub character_id: CharacterID,
+    #[serde(deserialize_with = "deserialize_from_str")]
+    pub context: String,
+    #[serde(
+        deserialize_with = "TimestampSeconds::<String>::deserialize_as",
+        serialize_with = "TimestampMilliSeconds::<i64>::serialize_as"
+    )]
+    pub timestamp: DateTime<Utc>,
+    #[serde(deserialize_with = "deserialize_from_str")]
+    pub item_count: u8,
+    #[serde(deserialize_with = "deserialize_from_str")]
+    pub item_id: u64,
+    #[serde(deserialize_with = "deserialize_from_str")]
+    pub world_id: WorldID,
     #[serde(deserialize_with = "deserialize_from_str")]
     pub zone_id: ZoneID,
 }
