@@ -15,6 +15,6 @@ auraxis = { git = "https://github.com/anothergenz/auraxis-rs" }
 If you want to use a local development version of the crate you can use the following in addition to the two lines above:
 
 ```toml
-[patch."https://github.com/brakenium/auraxis-rs"]
+[patch."https://github.com/anothergenz/auraxis-rs"]
 auraxis = { path = "/path/to/auraxis-rs/auraxis" }
 ```
