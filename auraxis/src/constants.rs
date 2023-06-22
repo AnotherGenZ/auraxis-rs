@@ -3,12 +3,13 @@ use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 #[cfg(feature = "strum")]
 use strum::{EnumIter, VariantNames, Display};
+use strum::{EnumString, FromRepr};
 
 #[repr(i16)]
 #[derive(
     Serialize, Deserialize, Copy, Clone, Eq, Debug, PartialEq, Hash, TryFromPrimitive, IntoPrimitive,
 )]
-#[cfg_attr(feature = "strum", derive(EnumIter, VariantNames, Display))]
+#[cfg_attr(feature = "strum", derive(EnumIter, VariantNames, Display, FromRepr, EnumString))]
 pub enum Loadout {
     Unknown = 0,
     NCInfiltrator = 1,
@@ -84,7 +85,7 @@ impl FromStr for Loadout {
 #[derive(
     Serialize, Deserialize, Copy, Clone, Eq, Debug, PartialEq, Hash, TryFromPrimitive, IntoPrimitive,
 )]
-#[cfg_attr(feature = "strum", derive(EnumIter, VariantNames, Display))]
+#[cfg_attr(feature = "strum", derive(EnumIter, VariantNames, Display, FromRepr, EnumString))]
 pub enum Faction {
     Unknown = 0,
     VS = 1,
@@ -108,7 +109,7 @@ impl FromStr for Faction {
 #[derive(
     Serialize, Deserialize, Copy, Clone, Eq, Debug, PartialEq, Hash, TryFromPrimitive, IntoPrimitive,
 )]
-#[cfg_attr(feature = "strum", derive(EnumIter, VariantNames, Display))]
+#[cfg_attr(feature = "strum", derive(EnumIter, VariantNames, Display, FromRepr, EnumString))]
 pub enum WorldID {
     Jaeger = 19,
     Briggs = 25,
