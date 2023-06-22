@@ -1,12 +1,14 @@
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::{Deserialize, Serialize};
-use std::fmt::{Display, Formatter};
 use std::str::FromStr;
+#[cfg(feature = "strum")]
+use strum::{EnumIter, VariantNames, Display};
 
 #[repr(i16)]
 #[derive(
     Serialize, Deserialize, Copy, Clone, Eq, Debug, PartialEq, Hash, TryFromPrimitive, IntoPrimitive,
 )]
+#[cfg_attr(feature = "strum", derive(EnumIter, VariantNames, Display))]
 pub enum Loadout {
     Unknown = 0,
     NCInfiltrator = 1,
@@ -82,6 +84,7 @@ impl FromStr for Loadout {
 #[derive(
     Serialize, Deserialize, Copy, Clone, Eq, Debug, PartialEq, Hash, TryFromPrimitive, IntoPrimitive,
 )]
+#[cfg_attr(feature = "strum", derive(EnumIter, VariantNames, Display))]
 pub enum Faction {
     Unknown = 0,
     VS = 1,
@@ -105,6 +108,7 @@ impl FromStr for Faction {
 #[derive(
     Serialize, Deserialize, Copy, Clone, Eq, Debug, PartialEq, Hash, TryFromPrimitive, IntoPrimitive,
 )]
+#[cfg_attr(feature = "strum", derive(EnumIter, VariantNames, Display))]
 pub enum WorldID {
     Jaeger = 19,
     Briggs = 25,
@@ -123,19 +127,5 @@ impl FromStr for WorldID {
         let world = Self::try_from(id)?;
 
         Ok(world)
-    }
-}
-
-impl Display for WorldID {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            WorldID::Jaeger => write!(f, "Jaeger"),
-            WorldID::Briggs => write!(f, "Briggs"),
-            WorldID::Miller => write!(f, "Miller"),
-            WorldID::Cobalt => write!(f, "Cobalt"),
-            WorldID::Connery => write!(f, "Connery"),
-            WorldID::Emerald => write!(f, "Emerald"),
-            WorldID::Soltech => write!(f, "Soltech"),
-        }
     }
 }

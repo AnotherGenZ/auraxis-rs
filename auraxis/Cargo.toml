@@ -25,12 +25,14 @@ async-trait = "0.1.58"
 auraxis_macros = { version = "0.1.0", path = "../auraxis_macros", optional = true }
 metrics = "0.21.0"
 stream-reconnect = "0.3.4"
+strum = { version = "0.25.0", features = ["derive"], optional = true }
 
 [dev-dependencies]
 tracing-subscriber = "0.3"
 
 [features]
 api = ["dep:auraxis_macros", "dep:reqwest"]
+strum = ["dep:strum"]
 
 [lib]
 name = "auraxis"
