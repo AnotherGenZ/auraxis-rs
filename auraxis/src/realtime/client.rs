@@ -270,6 +270,7 @@ impl RealtimeClient {
     ) -> Result<(), AuraxisError> {
         match msg {
             Message::Text(text) => {
+                info!("Received: {}", text);
                 let message: CensusMessage = serde_json::from_str(&text)?;
 
                 match message {

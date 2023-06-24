@@ -1,5 +1,6 @@
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 #[cfg(feature = "strum")]
 use strum::{EnumIter, EnumVariantNames, Display, EnumString, FromRepr};
 
@@ -68,6 +69,17 @@ impl Loadout {
     }
 }
 
+impl FromStr for Loadout {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let id = i16::from_str(s)?;
+        let loadout = Self::try_from(id)?;
+
+        Ok(loadout)
+    }
+}
+
 #[repr(i16)]
 #[derive(
     Serialize, Deserialize, Copy, Clone, Eq, Debug, PartialEq, Hash, TryFromPrimitive, IntoPrimitive,
@@ -79,6 +91,17 @@ pub enum Faction {
     NC = 2,
     TR = 3,
     NS = 4,
+}
+
+impl FromStr for Faction {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let id = i16::from_str(s)?;
+        let faction = Self::try_from(id)?;
+
+        Ok(faction)
+    }
 }
 
 #[repr(i16)]
@@ -94,4 +117,15 @@ pub enum WorldID {
     Connery = 1,
     Emerald = 17,
     Soltech = 40,
+}
+
+impl FromStr for WorldID {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let id = i16::from_str(s)?;
+        let world = Self::try_from(id)?;
+
+        Ok(world)
+    }
 }
