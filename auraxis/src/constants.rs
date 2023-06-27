@@ -111,7 +111,7 @@ impl FromStr for Faction {
 #[derive(
     Serialize, Deserialize, Copy, Clone, Eq, Debug, PartialEq, Hash, TryFromPrimitive, IntoPrimitive,
 )]
-#[cfg_attr(feature = "strum", derive(EnumIter, EnumVariantNames, strum::Display, FromRepr))]
+#[cfg_attr(feature = "strum", derive(EnumIter, EnumVariantNames, strum::Display, FromRepr), strum(ascii_case_insensitive))]
 pub enum WorldID {
     Jaeger = 19,
     Briggs = 25,
