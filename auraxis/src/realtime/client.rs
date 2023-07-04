@@ -15,10 +15,10 @@ use stream_reconnect::{ReconnectStream, UnderlyingStream};
 use tokio::net::TcpStream;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio_tungstenite::tungstenite::error::Error;
-use tokio_tungstenite::tungstenite::handshake::client::Response;
-use tokio_tungstenite::tungstenite::Message;
+use tokio_tungstenite::tungstenite::{Message, error::Error as WsError};
 use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
 use tracing::{debug, error, info};
+
 
 #[derive(Debug, Clone)]
 pub struct RealtimeClientConfig {
@@ -44,9 +44,7 @@ pub struct RealtimeClient {
     subscription_config: Arc<SubscriptionSettings>,
 }
 
-struct WebSocket(WebSocketStream<MaybeTlsStream<TcpStream>>, Response);
-
-type ReconnectingWS = ReconnectStream<WebSocket, String, Result<Message, Error>, Error>;
+struct Ws;
 
 impl RealtimeClient {
     #[must_use]
@@ -119,7 +117,7 @@ impl RealtimeClient {
             self.config.service_id
         );
 
-        let (websocket, _res) = connect_async(census_addr).await?;
+        let websocket = ReconnectWs::connect(census_addr).await?;
 
         let (ws_send, ws_recv) = websocket.split();
         let (ws_send_tx, ws_send_rx) = tokio::sync::mpsc::channel::<Message>(1000);
@@ -196,7 +194,7 @@ impl RealtimeClient {
     }
 
     async fn send_ws(
-        mut ws_send: SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
+        mut ws_send: SplitSink<ReconnectWs, Message>,
         mut ws_send_rx: Receiver<Message>,
     ) -> Result<(), AuraxisError> {
         while let Some(msg) = ws_send_rx.recv().await {
@@ -211,7 +209,7 @@ impl RealtimeClient {
     async fn read_ws(
         self,
         ws_send: Sender<Message>,
-        mut ws_recv: SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>,
+        mut ws_recv: SplitStream<ReconnectStream<Ws, String, Result<Message, Error>, Error>>,
         event_stream_tx: Sender<Event>,
     ) -> Result<(), AuraxisError> {
         while let Some(message) = ws_recv.next().await {
@@ -331,40 +329,46 @@ impl RealtimeClient {
     }
 }
 
-impl UnderlyingStream<String, Result<Message, Error>, Error> for WebSocket {
+
+impl UnderlyingStream<String, Result<Message, WsError>, WsError> for Ws {
+    type Stream = WebSocketStream<MaybeTlsStream<TcpStream>>;
+
     // Establishes connection.
     // Additionally, this will be used when reconnect tries are attempted.
-    fn establish(addr: String) -> Pin<Box<dyn Future<Output = Result<Self, Error>> + Send>> {
+    fn establish(addr: String) -> Pin<Box<dyn Future<Output = Result<Self::Stream, WsError>> + Send>> {
         Box::pin(async move {
             // In this case, we are trying to connect to the WebSocket endpoint
-            let (websocket, res) = connect_async(addr).await?;
-            Ok(WebSocket(websocket, res))
+            let ws_connection = connect_async(addr).await?.0;
+            Ok(ws_connection)
         })
     }
 
     // The following errors are considered disconnect errors.
-    fn is_write_disconnect_error(&self, err: &Error) -> bool {
+    fn is_write_disconnect_error(err: &WsError) -> bool {
         matches!(
-            err,
-            Error::ConnectionClosed
-                | Error::AlreadyClosed
-                | Error::Io(_)
-                | Error::Tls(_)
-                | Error::Protocol(_)
-        )
+                err,
+                WsError::ConnectionClosed
+                    | WsError::AlreadyClosed
+                    | WsError::Io(_)
+                    | WsError::Tls(_)
+                    | WsError::Protocol(_)
+            )
     }
 
     // If an `Err` is read, then there might be an disconnection.
-    fn is_read_disconnect_error(&self, item: &Result<Message, Error>) -> bool {
+    fn is_read_disconnect_error(item: &Result<Message, WsError>) -> bool {
         if let Err(e) = item {
-            self.is_write_disconnect_error(e)
+            Self::is_write_disconnect_error(e)
         } else {
             false
         }
     }
 
     // Return "Exhausted" if all retry attempts are failed.
-    fn exhaust_err() -> Error {
-        Error::Io(io::Error::new(io::ErrorKind::Other, "Exhausted"))
+    fn exhaust_err() -> WsError {
+        WsError::Io(io::Error::new(io::ErrorKind::Other, "Exhausted"))
     }
 }
+
+type ReconnectWs = ReconnectStream<Ws, String, Result<Message, WsError>, WsError>;
+
