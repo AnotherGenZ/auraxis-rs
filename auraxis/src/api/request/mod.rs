@@ -126,8 +126,8 @@ impl From<Join> for String {
     }
 }
 
-impl Into<String> for &Join {
-    fn into(self) -> String {
+impl From<&Join> for String {
+    fn from(val: &Join) -> Self {
         todo!()
     }
 }

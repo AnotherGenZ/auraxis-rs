@@ -23,9 +23,9 @@ impl CensusCollection {
     }
 }
 
-impl Into<String> for CensusCollection {
-    fn into(self) -> String {
-        self.name().to_string()
+impl From<CensusCollection> for String {
+    fn from(val: CensusCollection) -> Self {
+        val.name().to_string()
     }
 }
 
