@@ -31,7 +31,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let mut client = RealtimeClient::new(config);
 
-    client.subscribe(subscription);
+    client.subscribe(subscription).await;
 
     let mut events = client.connect().await?;
 
