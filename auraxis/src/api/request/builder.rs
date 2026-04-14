@@ -235,14 +235,13 @@ impl CensusRequestBuilder {
     }
 
     pub fn build(self) -> CensusRequest {
-        let mut url = self.url;
         let mut query_params = Vec::new();
 
         match self.filters {
             None => {}
             Some(filters) => {
                 for filter in filters {
-                    query_params.push(filter.into())
+                    query_params.push(filter.into_pair());
                 }
             }
         }
@@ -251,7 +250,7 @@ impl CensusRequestBuilder {
             None => {}
             Some(show) => {
                 let fields = show.join(",");
-                query_params.push(format!("c:show={}", fields));
+                query_params.push(("c:show".to_string(), fields));
             }
         }
 
@@ -259,7 +258,7 @@ impl CensusRequestBuilder {
             None => {}
             Some(hide) => {
                 let fields = hide.join(",");
-                query_params.push(format!("c:hide={}", fields));
+                query_params.push(("c:hide".to_string(), fields));
             }
         }
 
@@ -280,91 +279,94 @@ impl CensusRequestBuilder {
                     .collect::<Vec<String>>()
                     .join(",");
 
-                query_params.push(format!("c:sort={}", fields));
+                query_params.push(("c:sort".to_string(), fields));
             }
         }
 
         match self.has {
             None => {}
             Some(has) => {
-                query_params.push(format!("c:has={}", has.join(",")));
+                query_params.push(("c:has".to_string(), has.join(",")));
             }
         }
 
         match self.resolve {
             None => {}
             Some(resolve) => {
-                query_params.push(format!("c:resolve={}", resolve.join(",")));
+                query_params.push(("c:resolve".to_string(), resolve.join(",")));
             }
         }
 
         match self.case {
             None => {}
             Some(case) => {
-                query_params.push(format!("c:case={}", case));
+                query_params.push(("c:case".to_string(), case.to_string()));
             }
         }
 
         match self.limit {
             None => {}
             Some(limit) => {
-                query_params.push(format!("c:limit={}", limit));
+                query_params.push(("c:limit".to_string(), limit.to_string()));
             }
         }
 
         match self.limit_per_db {
             None => {}
             Some(limit_per_db) => {
-                query_params.push(format!("c:limitPerDB={}", limit_per_db));
+                query_params.push(("c:limitPerDB".to_string(), limit_per_db.to_string()));
             }
         }
 
         match self.start {
             None => {}
             Some(start) => {
-                query_params.push(format!("c:start={}", start));
+                query_params.push(("c:start".to_string(), start.to_string()));
             }
         }
 
         match self.include_null {
             None => {}
             Some(include_null) => {
-                query_params.push(format!("c:includeNull={}", include_null));
+                query_params.push(("c:includeNull".to_string(), include_null.to_string()));
             }
         }
 
         match self.lang {
             None => {}
             Some(lang) => {
-                query_params.push(format!("c:lang={}", lang));
+                query_params.push(("c:lang".to_string(), lang));
             }
         }
 
         match self.timing {
             None => {}
             Some(timing) => {
-                query_params.push(format!("c:timing={}", timing));
+                query_params.push(("c:timing".to_string(), timing.to_string()));
             }
         }
 
         match self.exact_match_first {
             None => {}
             Some(exact_match_first) => {
-                query_params.push(format!("c:exactMatchFirst={}", exact_match_first));
+                query_params.push((
+                    "c:exactMatchFirst".to_string(),
+                    exact_match_first.to_string(),
+                ));
             }
         }
 
         match self.distinct {
             None => {}
             Some(distinct) => {
-                query_params.push(format!("c:distinct={}", distinct));
+                query_params.push(("c:distinct".to_string(), distinct));
             }
         }
 
         match self.retry {
             None => {}
             Some(retry) => {
-                query_params.push(format!("c:retry={}", retry));
+                query_params.push(("c:retry".to_string(), retry.to_string()));
             }
         }
 
@@ -373,20 +375,49 @@ impl CensusRequestBuilder {
             Some(joins) => {
                 let joins: Vec<String> = joins.iter().map(|join| join.into()).collect();
 
-                query_params.push(format!("c:join={}", joins.join(",")));
+                query_params.push(("c:join".to_string(), joins.join(",")));
             }
         }
 
         // TODO: Add tree
 
-        if !query_params.is_empty() {
-            url = format!("{}?{}", url, query_params.join("&"));
-        }
-
         CensusRequest {
             client: self.client,
             collection: self.collection,
-            url,
+            url: self.url,
+            query_params,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use reqwest::Client;
+
+    use super::CensusRequestBuilder;
+    use crate::api::request::FilterType;
+
+    #[test]
+    fn build_stores_query_params_for_encoded_request_building() {
+        let request = CensusRequestBuilder::new(
+            Client::new(),
+            "character".to_string(),
+            "https://example.com/get/ps2:v2/character".to_string(),
+        )
+        .show("name.first")
+        .filter("name.first_lower", FilterType::StartsWith, "te st")
+        .build();
+
+        let url = request
+            .client
+            .get(request.url.clone())
+            .query(&request.query_params)
+            .build()
+            .expect("request should build")
+            .url()
+            .to_string();
+
+        assert!(url.contains("c%3Ashow=name.first"));
+        assert!(url.contains("name.first_lower=%5Ete+st"));
     }
 }

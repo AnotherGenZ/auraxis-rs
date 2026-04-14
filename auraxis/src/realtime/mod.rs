@@ -13,7 +13,7 @@ use utils::{deserialize_from_str, serialize_optional_bool};
 
 pub const REALTIME_URL: &str = "wss://push.planetside2.com/streaming";
 
-#[derive(Serialize, Clone, Debug)]
+#[derive(Serialize, Clone, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum Service {
     Event,
@@ -62,6 +62,7 @@ struct Subscription {
 
 #[derive(Deserialize, PartialEq, Debug)]
 #[serde(tag = "type", rename_all = "camelCase")]
+#[allow(clippy::enum_variant_names)]
 enum Message {
     ConnectionStateChanged {
         #[serde(deserialize_with = "deserialize_from_str")]

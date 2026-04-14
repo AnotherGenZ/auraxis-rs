@@ -19,7 +19,7 @@ jobs:
     name: Build documentation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v6
       - name: Install nightly toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -30,7 +30,7 @@ jobs:
       - name: Create index.html
         run: echo '<meta http-equiv=refresh content=0;url=auraxis/index.html>' > target/doc/index.html
       - name: Upload documentation artifact
-        uses: actions/upload-pages-artifact@v1
+        uses: actions/upload-pages-artifact@v5
         with:
           path: target/doc
 
@@ -51,7 +51,7 @@ jobs:
 
     steps:
       - name: Deploy to Github Pages
-        uses: actions/deploy-pages@v1
+        uses: actions/deploy-pages@v5
         id: deployment
 
 

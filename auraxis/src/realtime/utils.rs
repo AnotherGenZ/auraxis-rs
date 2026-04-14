@@ -26,7 +26,7 @@ where
 }
 
 pub fn serialize_char_ids_subscription<S>(
-    value: &Vec<CharacterID>,
+    value: &[CharacterID],
     serializer: S,
 ) -> Result<S::Ok, S::Error>
 where
@@ -41,7 +41,7 @@ where
 }
 
 pub fn serialize_world_ids_subscription<S>(
-    value: &Vec<WorldID>,
+    value: &[WorldID],
     serializer: S,
 ) -> Result<S::Ok, S::Error>
 where

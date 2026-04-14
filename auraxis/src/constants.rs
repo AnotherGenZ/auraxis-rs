@@ -1,11 +1,14 @@
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::{Deserialize, Serialize};
-use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 
 #[repr(i16)]
 #[derive(
     Serialize, Deserialize, Copy, Clone, Eq, Debug, PartialEq, Hash, TryFromPrimitive, IntoPrimitive,
+)]
+#[cfg_attr(
+    feature = "strum",
+    derive(strum::Display, strum::EnumIter, strum::VariantNames, strum::FromRepr)
 )]
 pub enum Loadout {
     Unknown = 0,
@@ -82,6 +85,10 @@ impl FromStr for Loadout {
 #[derive(
     Serialize, Deserialize, Copy, Clone, Eq, Debug, PartialEq, Hash, TryFromPrimitive, IntoPrimitive,
 )]
+#[cfg_attr(
+    feature = "strum",
+    derive(strum::Display, strum::EnumIter, strum::VariantNames, strum::FromRepr)
+)]
 pub enum Faction {
     Unknown = 0,
     VS = 1,
@@ -105,6 +112,10 @@ impl FromStr for Faction {
 #[derive(
     Serialize, Deserialize, Copy, Clone, Eq, Debug, PartialEq, Hash, TryFromPrimitive, IntoPrimitive,
 )]
+#[cfg_attr(
+    feature = "strum",
+    derive(strum::Display, strum::EnumIter, strum::VariantNames, strum::FromRepr)
+)]
 pub enum WorldID {
     Jaeger = 19,
     Briggs = 25,
@@ -126,8 +137,9 @@ impl FromStr for WorldID {
     }
 }
 
-impl Display for WorldID {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+#[cfg(not(feature = "strum"))]
+impl std::fmt::Display for WorldID {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             WorldID::Jaeger => write!(f, "Jaeger"),
             WorldID::Briggs => write!(f, "Briggs"),

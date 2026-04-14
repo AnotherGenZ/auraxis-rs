@@ -1,24 +1,24 @@
 use super::Message as CensusMessage;
-use crate::realtime::{Action, Event, SubscriptionSettings, REALTIME_URL};
 use crate::AuraxisError;
+use crate::realtime::{Action, Event, REALTIME_URL, SubscriptionSettings};
 use std::io;
 use std::pin::Pin;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
+use std::task::{Context, Poll};
 
 use std::time::Duration;
 
-use futures::TryFutureExt;
 use futures_util::stream::{SplitSink, SplitStream};
-use futures_util::{Future, SinkExt, StreamExt};
-use metrics::{describe_counter, increment_counter};
+use futures_util::{Future, Sink, SinkExt, Stream, StreamExt};
+use metrics::{counter, describe_counter};
 use stream_reconnect::{ReconnectStream, UnderlyingStream};
 use tokio::net::TcpStream;
-use tokio::sync::mpsc::{Receiver, Sender};
-use tokio_tungstenite::tungstenite::error::Error;
-use tokio_tungstenite::tungstenite::handshake::client::Response;
+use tokio::sync::mpsc::{Receiver, Sender, UnboundedReceiver, UnboundedSender};
+use tokio::sync::watch;
 use tokio_tungstenite::tungstenite::Message;
-use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
-use tracing::{debug, error, info};
+use tokio_tungstenite::tungstenite::error::Error as WsError;
+use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, connect_async};
+use tracing::{debug, error, info, warn};
 
 #[derive(Debug, Clone)]
 pub struct RealtimeClientConfig {
@@ -40,13 +40,18 @@ impl Default for RealtimeClientConfig {
 #[derive(Debug, Clone)]
 pub struct RealtimeClient {
     config: Arc<RealtimeClientConfig>,
-    ws_send: Option<Sender<Message>>,
-    subscription_config: Arc<SubscriptionSettings>,
+    state: Arc<RwLock<RealtimeClientState>>,
 }
 
-struct WebSocket(WebSocketStream<MaybeTlsStream<TcpStream>>, Response);
+#[derive(Debug, Clone)]
+struct RealtimeClientState {
+    subscription_config: SubscriptionSettings,
+    ws_send: Option<UnboundedSender<Message>>,
+}
 
-type ReconnectingWS = ReconnectStream<WebSocket, String, Result<Message, Error>, Error>;
+struct WebSocket(WebSocketStream<MaybeTlsStream<TcpStream>>);
+
+type ReconnectWs = ReconnectStream<WebSocket, String, Result<Message, WsError>, WsError>;
 
 impl RealtimeClient {
     #[must_use]
@@ -90,8 +95,10 @@ impl RealtimeClient {
 
         Self {
             config: Arc::new(config),
-            ws_send: None,
-            subscription_config: Arc::new(SubscriptionSettings::default()),
+            state: Arc::new(RwLock::new(RealtimeClientState {
+                subscription_config: SubscriptionSettings::empty(),
+                ws_send: None,
+            })),
         }
     }
 
@@ -112,6 +119,10 @@ impl RealtimeClient {
     ///
     /// This function will return an error if the websocket connection cannot be created.
     pub async fn connect(&mut self) -> Result<Receiver<Event>, AuraxisError> {
+        if self.current_ws_sender().is_some() {
+            return Err(anyhow::anyhow!("RealtimeClient is already connected").into());
+        }
+
         let census_addr = format!(
             "{}?environment={}&service-id=s:{}",
             self.config.realtime_url.as_deref().unwrap_or(REALTIME_URL),
@@ -119,90 +130,202 @@ impl RealtimeClient {
             self.config.service_id
         );
 
-        let (websocket, _res) = connect_async(census_addr).await?;
+        let websocket = ReconnectWs::connect(census_addr).await?;
 
         let (ws_send, ws_recv) = websocket.split();
-        let (ws_send_tx, ws_send_rx) = tokio::sync::mpsc::channel::<Message>(1000);
+        let (ws_send_tx, ws_send_rx) = tokio::sync::mpsc::unbounded_channel::<Message>();
         let (event_stream_tx, event_stream_rx) = tokio::sync::mpsc::channel::<Event>(1000);
+        let (shutdown_tx, shutdown_rx) = watch::channel(false);
 
-        self.ws_send = Some(ws_send_tx.clone());
+        self.set_ws_sender(Some(ws_send_tx.clone()));
 
-        tokio::spawn(Self::send_ws(ws_send, ws_send_rx));
-        tokio::spawn(Self::ping_ws(ws_send_tx.clone()));
-        tokio::spawn(Self::resubscribe(self.clone(), ws_send_tx.clone()));
+        tokio::spawn(Self::send_ws(ws_send, ws_send_rx, shutdown_rx.clone()));
+        tokio::spawn(Self::ping_ws(ws_send_tx.clone(), shutdown_rx.clone()));
+        tokio::spawn(Self::resubscribe(
+            self.clone(),
+            ws_send_tx.clone(),
+            shutdown_rx.clone(),
+        ));
         tokio::spawn(Self::read_ws(
             self.clone(),
             ws_send_tx,
             ws_recv,
             event_stream_tx,
+            shutdown_tx,
+            shutdown_rx,
         ));
 
         Ok(event_stream_rx)
     }
 
     pub fn subscribe(&mut self, subscription: SubscriptionSettings) {
-        self.subscription_config = Arc::new(subscription);
+        let ws_send = {
+            let mut state = self.state.write().expect("realtime client state poisoned");
+            state.subscription_config.merge(subscription);
+            state.ws_send.clone()
+        };
+
+        let subscribe_message = match self.subscribe_message() {
+            Ok(Some(message)) => message,
+            Ok(None) => return,
+            Err(err) => {
+                error!("Failed to serialize subscription update: {err}");
+                return;
+            }
+        };
+
+        if let Some(ws_send) = ws_send
+            && let Err(err) = ws_send.send(subscribe_message)
+        {
+            warn!("Failed to enqueue live subscription update: {err}");
+            self.set_ws_sender(None);
+        }
     }
 
-    async fn resubscribe(self, ws_send: Sender<Message>) -> Result<(), AuraxisError> {
-        loop {
-            let res = ws_send
-                .send(Message::Text(serde_json::to_string(&Action::Subscribe(
-                    (*self.subscription_config).clone(),
-                ))?))
-                .await;
+    pub fn clear_subscribe(&mut self, subscription: SubscriptionSettings) {
+        let (ws_send, current_subscription) = {
+            let mut state = self.state.write().expect("realtime client state poisoned");
+            state.subscription_config.clear(&subscription);
+            (state.ws_send.clone(), state.subscription_config.clone())
+        };
 
-            match res {
-                Ok(_) => {
-                    increment_counter!("realtime_total_resubscriptions");
-                    tokio::time::sleep(Duration::from_secs(60 * 30)).await;
-                }
-                Err(err) => {
-                    error!(
-                        "Failed to send subscription message: {}. Retrying in 5 seconds",
-                        err
-                    );
-                    tokio::time::sleep(Duration::from_secs(5)).await;
+        let clear_message = match Self::clear_subscribe_message(&subscription) {
+            Ok(message) => message,
+            Err(err) => {
+                error!("Failed to serialize clear subscription update: {err}");
+                return;
+            }
+        };
+
+        if let Some(ws_send) = ws_send {
+            if let Err(err) = ws_send.send(clear_message) {
+                warn!("Failed to enqueue clear subscription update: {err}");
+                self.set_ws_sender(None);
+                return;
+            }
+
+            if subscription.logical_and_characters_with_worlds.is_some()
+                && !current_subscription.is_empty()
+            {
+                match serde_json::to_string(&Action::Subscribe(current_subscription))
+                    .map(|message| Message::Text(message.into()))
+                {
+                    Ok(message) => {
+                        if let Err(err) = ws_send.send(message) {
+                            warn!("Failed to enqueue resubscribe after logical-and update: {err}");
+                            self.set_ws_sender(None);
+                        }
+                    }
+                    Err(err) => {
+                        error!("Failed to serialize resubscribe after logical-and update: {err}");
+                    }
                 }
             }
         }
     }
 
-    async fn ping_ws(ping_send: Sender<Message>) -> Result<(), AuraxisError> {
-        let max_ping_fails = 5;
-        let mut ping_fails = 0;
-        loop {
-            let send_result = ping_send.send(Message::Ping(b"Hello".to_vec())).await;
+    pub fn clear_all_subscriptions(&mut self) {
+        let ws_send = {
+            let mut state = self.state.write().expect("realtime client state poisoned");
+            state.subscription_config = SubscriptionSettings::empty();
+            state.ws_send.clone()
+        };
 
-            match send_result {
-                Ok(_) => {
-                    ping_fails -= 1;
-                    increment_counter!("realtime_total_pings");
+        if let Some(ws_send) = ws_send {
+            match Self::clear_all_subscribe_message() {
+                Ok(message) => {
+                    if let Err(err) = ws_send.send(message) {
+                        warn!("Failed to enqueue clear-all subscription update: {err}");
+                        self.set_ws_sender(None);
+                    }
                 }
                 Err(err) => {
-                    error!("Failed to send ping message: {}", err);
-                    increment_counter!("realtime_total_ping_errors");
-                    ping_fails += 1;
-                    if ping_fails > max_ping_fails {
-                        panic!(
-                            "Failed to send ping message: {max_ping_fails} times in a row. Exiting"
-                        );
+                    error!("Failed to serialize clear-all subscription update: {err}");
+                }
+            }
+        }
+    }
+
+    async fn resubscribe(
+        self,
+        ws_send: UnboundedSender<Message>,
+        mut shutdown: watch::Receiver<bool>,
+    ) -> Result<(), AuraxisError> {
+        loop {
+            if *shutdown.borrow() {
+                return Ok(());
+            }
+
+            let Some(message) = self.subscribe_message()? else {
+                tokio::select! {
+                    _ = shutdown.changed() => return Ok(()),
+                    _ = tokio::time::sleep(Duration::from_secs(60 * 30)) => {}
+                }
+                continue;
+            };
+
+            let res = ws_send.send(message);
+
+            match res {
+                Ok(_) => {
+                    counter!("realtime_total_resubscriptions").increment(1);
+                    tokio::select! {
+                        _ = shutdown.changed() => return Ok(()),
+                        _ = tokio::time::sleep(Duration::from_secs(60 * 30)) => {}
                     }
+                }
+                Err(err) => {
+                    warn!("Subscription loop shutting down: {}", err);
+                    return Ok(());
+                }
+            }
+        }
+    }
+
+    async fn ping_ws(
+        ping_send: UnboundedSender<Message>,
+        mut shutdown: watch::Receiver<bool>,
+    ) -> Result<(), AuraxisError> {
+        loop {
+            match ping_send.send(Message::Ping(b"Hello".to_vec().into())) {
+                Ok(_) => {
+                    counter!("realtime_total_pings").increment(1);
+                }
+                Err(err) => {
+                    warn!("Ping loop shutting down: {}", err);
+                    counter!("realtime_total_ping_errors").increment(1);
+                    return Ok(());
                 }
             }
 
-            tokio::time::sleep(Duration::from_secs(1)).await;
+            tokio::select! {
+                _ = shutdown.changed() => return Ok(()),
+                _ = tokio::time::sleep(Duration::from_secs(1)) => {}
+            }
         }
     }
 
     async fn send_ws(
-        mut ws_send: SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
-        mut ws_send_rx: Receiver<Message>,
+        mut ws_send: SplitSink<ReconnectWs, Message>,
+        mut ws_send_rx: UnboundedReceiver<Message>,
+        mut shutdown: watch::Receiver<bool>,
     ) -> Result<(), AuraxisError> {
-        while let Some(msg) = ws_send_rx.recv().await {
+        loop {
+            let message = tokio::select! {
+                _ = shutdown.changed() => break,
+                message = ws_send_rx.recv() => message,
+            };
+
+            let Some(msg) = message else {
+                break;
+            };
+
             // debug!("Sent: {:?}", msg.to_string());
-            ws_send.send(msg).await?;
-            increment_counter!("realtime_messages_total_sent");
+            if let Err(err) = ws_send.send(msg).await {
+                warn!("Send loop shutting down: {err}");
+                return Err(err.into());
+            }
+            counter!("realtime_messages_total_sent").increment(1);
         }
 
         Ok(())
@@ -210,62 +333,76 @@ impl RealtimeClient {
 
     async fn read_ws(
         self,
-        ws_send: Sender<Message>,
-        mut ws_recv: SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>,
+        ws_send: UnboundedSender<Message>,
+        mut ws_recv: SplitStream<ReconnectWs>,
         event_stream_tx: Sender<Event>,
+        shutdown_tx: watch::Sender<bool>,
+        mut shutdown: watch::Receiver<bool>,
     ) -> Result<(), AuraxisError> {
-        while let Some(message) = ws_recv.next().await {
-            increment_counter!("realtime_messages_received_total");
+        loop {
+            let message = tokio::select! {
+                _ = shutdown.changed() => break,
+                message = ws_recv.next() => message,
+            };
+
+            let Some(message) = message else {
+                break;
+            };
+
+            counter!("realtime_messages_received_total").increment(1);
             match message {
                 Ok(msg) => {
                     // debug!("Received: {:?}", msg.to_string());
-                    tokio::spawn(
-                        Self::handle_ws_msg(
-                            self.clone(),
-                            ws_send.clone(),
-                            event_stream_tx.clone(),
-                            msg,
-                        )
-                        .map_err(|err| {
-                            increment_counter!("realtime_messages_received_total_errored");
-                            error!("{:?}", err);
-                        }),
-                    );
+                    if let Err(err) = Self::handle_ws_msg(
+                        self.clone(),
+                        ws_send.clone(),
+                        event_stream_tx.clone(),
+                        shutdown_tx.clone(),
+                        msg,
+                    )
+                    .await
+                    {
+                        counter!("realtime_messages_received_total_errored").increment(1);
+                        error!("{:?}", err);
+                    }
                 }
                 Err(err) => {
                     //println!("{:?}", &err);
-                    increment_counter!("realtime_messages_received_total_errored");
+                    counter!("realtime_messages_received_total_errored").increment(1);
 
                     match err {
-                        Error::ConnectionClosed => {
+                        WsError::ConnectionClosed => {
                             error!("Connection closed");
-                            increment_counter!("realtime_total_closed_connections");
-                            // TODO: Reconnect
+                            counter!("realtime_total_closed_connections").increment(1);
+                            break;
                         }
-                        Error::AlreadyClosed
-                        | Error::Io(_)
-                        | Error::Tls(_)
-                        | Error::Capacity(_)
-                        | Error::Protocol(_)
-                        | Error::SendQueueFull(_)
-                        | Error::Utf8
-                        | Error::Url(_)
-                        | Error::Http(_)
-                        | Error::HttpFormat(_) => {}
+                        WsError::AlreadyClosed
+                        | WsError::Io(_)
+                        | WsError::Tls(_)
+                        | WsError::Capacity(_)
+                        | WsError::Protocol(_)
+                        | WsError::WriteBufferFull(_)
+                        | WsError::Utf8(_)
+                        | WsError::Url(_)
+                        | WsError::Http(_)
+                        | WsError::HttpFormat(_)
+                        | WsError::AttackAttempt => {}
                     }
                 }
             }
         }
 
-        // Connection closed
+        self.set_ws_sender(None);
+        signal_shutdown(&shutdown_tx);
 
         Ok(())
     }
 
     async fn handle_ws_msg(
         self,
-        ws_send: Sender<Message>,
+        ws_send: UnboundedSender<Message>,
         events: Sender<Event>,
+        shutdown: watch::Sender<bool>,
         msg: Message,
     ) -> Result<(), AuraxisError> {
         match msg {
@@ -277,32 +414,31 @@ impl RealtimeClient {
                         if connected {
                             info!("Connected to Census!");
 
-                            increment_counter!("realtime_total_connections");
+                            counter!("realtime_total_connections").increment(1);
 
-                            debug!(
-                                "Subscribing with {:?}",
-                                serde_json::to_string(&Action::Subscribe(
-                                    (*self.subscription_config).clone()
-                                ))?
-                            );
+                            let Some(subscription_message) = self.subscribe_message()? else {
+                                return Ok(());
+                            };
+                            debug!("Subscribing with {:?}", subscription_message);
 
-                            ws_send
-                                .send(Message::Text(serde_json::to_string(&Action::Subscribe(
-                                    (*self.subscription_config).clone(),
-                                ))?))
-                                .await
-                                .expect("WS send channel closed");
+                            if let Err(err) = ws_send.send(subscription_message) {
+                                signal_shutdown(&shutdown);
+                                debug!(
+                                    "Subscription send aborted because ws channel closed: {err}"
+                                );
+                            }
                         }
                     }
                     CensusMessage::Heartbeat { .. } => {
-                        increment_counter!("realtime_messages_received_heartbeat");
+                        counter!("realtime_messages_received_heartbeat").increment(1);
                     }
                     CensusMessage::ServiceStateChanged { .. } => {}
                     CensusMessage::ServiceMessage { payload } => {
-                        events
-                            .send(payload)
-                            .await
-                            .expect("events send channel closed");
+                        if events.send(payload).await.is_err() {
+                            debug!("Dropping realtime event because consumer channel is closed");
+                            signal_shutdown(&shutdown);
+                            return Ok(());
+                        }
                     }
                     CensusMessage::Subscription { subscription } => {
                         debug!("Subscribed: {:?}", subscription);
@@ -311,51 +447,146 @@ impl RealtimeClient {
             }
             Message::Binary(_) | Message::Pong(_) | Message::Frame(_) => {}
             Message::Ping(ping) => {
-                ws_send
-                    .send(Message::Pong(ping))
-                    .await
-                    .expect("WS send channel closed");
+                if let Err(err) = ws_send.send(Message::Pong(ping)) {
+                    signal_shutdown(&shutdown);
+                    debug!("Pong send aborted because ws channel closed: {err}");
+                }
             }
             Message::Close(close) => {
-                increment_counter!("realtime.total_closed_connections");
+                counter!("realtime_total_closed_connections").increment(1);
                 if let Some(close_frame) = close {
                     error!(
                         "Websocket closed. Code: {}, Reason: {}",
                         close_frame.code, close_frame.reason
                     );
                 }
+                warn!("Websocket close frame received; waiting for reconnect");
             }
         }
 
         Ok(())
     }
+
+    fn subscribe_message(&self) -> Result<Option<Message>, AuraxisError> {
+        let subscription = self.current_subscription();
+        if subscription.is_empty() {
+            return Ok(None);
+        }
+
+        Ok(Some(Message::Text(
+            serde_json::to_string(&Action::Subscribe(subscription))?.into(),
+        )))
+    }
+
+    fn clear_subscribe_message(
+        subscription: &SubscriptionSettings,
+    ) -> Result<Message, AuraxisError> {
+        Ok(Message::Text(
+            serde_json::to_string(&Action::ClearSubscribe {
+                all: None,
+                event_names: subscription.event_names.clone(),
+                characters: subscription.characters.clone(),
+                worlds: subscription.worlds.clone(),
+                service: subscription.service.clone(),
+            })?
+            .into(),
+        ))
+    }
+
+    fn clear_all_subscribe_message() -> Result<Message, AuraxisError> {
+        Ok(Message::Text(
+            serde_json::to_string(&Action::ClearSubscribe {
+                all: Some(true),
+                event_names: None,
+                characters: None,
+                worlds: None,
+                service: crate::realtime::Service::Event,
+            })?
+            .into(),
+        ))
+    }
+
+    fn current_subscription(&self) -> SubscriptionSettings {
+        self.state
+            .read()
+            .expect("realtime client state poisoned")
+            .subscription_config
+            .clone()
+    }
+
+    fn current_ws_sender(&self) -> Option<UnboundedSender<Message>> {
+        self.state
+            .read()
+            .expect("realtime client state poisoned")
+            .ws_send
+            .clone()
+    }
+
+    fn set_ws_sender(&self, ws_send: Option<UnboundedSender<Message>>) {
+        self.state
+            .write()
+            .expect("realtime client state poisoned")
+            .ws_send = ws_send;
+    }
 }
 
-impl UnderlyingStream<String, Result<Message, Error>, Error> for WebSocket {
+fn signal_shutdown(shutdown: &watch::Sender<bool>) {
+    let _ = shutdown.send(true);
+}
+
+impl Stream for WebSocket {
+    type Item = Result<Message, WsError>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        Pin::new(&mut self.0).poll_next(cx)
+    }
+}
+
+impl Sink<Message> for WebSocket {
+    type Error = WsError;
+
+    fn poll_ready(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        Pin::new(&mut self.0).poll_ready(cx)
+    }
+
+    fn start_send(mut self: Pin<&mut Self>, item: Message) -> Result<(), Self::Error> {
+        Pin::new(&mut self.0).start_send(item)
+    }
+
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        Pin::new(&mut self.0).poll_flush(cx)
+    }
+
+    fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        Pin::new(&mut self.0).poll_close(cx)
+    }
+}
+
+impl UnderlyingStream<String, Result<Message, WsError>, WsError> for WebSocket {
     // Establishes connection.
     // Additionally, this will be used when reconnect tries are attempted.
-    fn establish(addr: String) -> Pin<Box<dyn Future<Output = Result<Self, Error>> + Send>> {
+    fn establish(addr: String) -> Pin<Box<dyn Future<Output = Result<Self, WsError>> + Send>> {
         Box::pin(async move {
             // In this case, we are trying to connect to the WebSocket endpoint
-            let (websocket, res) = connect_async(addr).await?;
-            Ok(WebSocket(websocket, res))
+            let (websocket, _) = connect_async(addr).await?;
+            Ok(WebSocket(websocket))
         })
     }
 
     // The following errors are considered disconnect errors.
-    fn is_write_disconnect_error(&self, err: &Error) -> bool {
+    fn is_write_disconnect_error(&self, err: &WsError) -> bool {
         matches!(
             err,
-            Error::ConnectionClosed
-                | Error::AlreadyClosed
-                | Error::Io(_)
-                | Error::Tls(_)
-                | Error::Protocol(_)
+            WsError::ConnectionClosed
+                | WsError::AlreadyClosed
+                | WsError::Io(_)
+                | WsError::Tls(_)
+                | WsError::Protocol(_)
         )
     }
 
     // If an `Err` is read, then there might be an disconnection.
-    fn is_read_disconnect_error(&self, item: &Result<Message, Error>) -> bool {
+    fn is_read_disconnect_error(&self, item: &Result<Message, WsError>) -> bool {
         if let Err(e) = item {
             self.is_write_disconnect_error(e)
         } else {
@@ -364,7 +595,7 @@ impl UnderlyingStream<String, Result<Message, Error>, Error> for WebSocket {
     }
 
     // Return "Exhausted" if all retry attempts are failed.
-    fn exhaust_err() -> Error {
-        Error::Io(io::Error::new(io::ErrorKind::Other, "Exhausted"))
+    fn exhaust_err() -> WsError {
+        WsError::Io(io::Error::other("Exhausted"))
     }
 }

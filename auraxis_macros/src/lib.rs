@@ -45,8 +45,6 @@ pub fn derive_census_query(input: TokenStream) -> TokenStream {
 
     match args {
         Ok(args) => {
-            println!("{:?}", &args);
-
             match args.data {
                 Data::Enum(_) => todo!(),
                 Data::Struct(data) => {

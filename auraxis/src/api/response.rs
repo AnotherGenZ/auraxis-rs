@@ -1,5 +1,5 @@
 use reqwest::Response;
-use serde::{de::Visitor, Deserialize};
+use serde::{de::IgnoredAny, de::Visitor, Deserialize};
 
 use crate::AuraxisError;
 
@@ -43,23 +43,42 @@ impl<'de> Visitor<'de> for CensusResponseVisitor {
             } else if k.ends_with("_list") {
                 items = Some(map.next_value()?);
             } else {
-                return Err(serde::de::Error::custom(&format!("Invalid key: {}", k)));
+                let _ = map.next_value::<IgnoredAny>()?;
             }
         }
 
-        if items.is_none() || count.is_none() {
-            return Err(serde::de::Error::custom("Missing collection_list or count"));
-        }
+        let items =
+            items.ok_or_else(|| serde::de::Error::custom("Missing collection_list or count"))?;
+        let count =
+            count.ok_or_else(|| serde::de::Error::custom("Missing collection_list or count"))?;
 
-        Ok(CensusResponse {
-            items: items.unwrap(),
-            count: count.unwrap(),
-        })
+        Ok(CensusResponse { items, count })
     }
 }
 
 impl CensusResponse {
     pub async fn from_response(response: Response) -> Result<Self, AuraxisError> {
         Ok(response.json::<CensusResponse>().await?)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::CensusResponse;
+
+    #[test]
+    fn ignores_extra_metadata_keys() {
+        let response = serde_json::from_str::<CensusResponse>(
+            r#"{
+                "character_list": [{"character_id": "1"}],
+                "returned": 1,
+                "timing": {"query": "1.23"},
+                "errorCode": "ok"
+            }"#,
+        )
+        .expect("response should deserialize");
+
+        assert_eq!(response.count, 1);
+        assert_eq!(response.items.len(), 1);
     }
 }

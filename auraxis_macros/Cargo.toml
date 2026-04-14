@@ -3,13 +3,13 @@ name = "auraxis_macros"
 description = "Macros for working with the auraxis crate"
 license = "MIT"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [lib]
 name = "auraxis_macros"
 proc-macro = true
 
 [dependencies]
-darling = "0.14.2"
+darling = "0.23.0"
 quote = "1.0.21"
-syn = "1.0.103"
+syn = "2.0.117"

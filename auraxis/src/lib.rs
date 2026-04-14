@@ -1,7 +1,4 @@
-#![cfg_attr(
-    feature = "api",
-    feature(impl_trait_in_assoc_type)
-)]
+#![cfg_attr(feature = "api", feature(impl_trait_in_assoc_type))]
 #![allow(dead_code)]
 #![allow(unused_variables)]
 
